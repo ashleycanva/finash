@@ -167,6 +167,17 @@ input,select{
   color:var(--ink);
 }
 input:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:var(--teal)}
+.field-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.mode-toggle{
+  background:none;border:none;padding:0 0 4px;
+  font-size:.72rem;font-weight:600;color:var(--teal-deep);
+  text-decoration:underline;text-underline-offset:2px;
+}
+.mode-toggle:focus-visible{outline:2px solid var(--teal-deep);outline-offset:2px}
+.mode-hint{
+  font-size:.78rem;color:var(--ink-faint);font-family:var(--mono);
+  margin:-2px 0 10px;
+}
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
   border:none;border-radius:10px;
@@ -325,9 +336,16 @@ details.settings form{margin-top:12px}
         <div><label for="s-date">Date</label><input id="s-date" type="date" required></div>
       </div>
       <div class="row">
-        <div><label for="s-shares">Shares</label><input id="s-shares" type="number" step="any" min="0.000001" placeholder="2.5" required inputmode="decimal"></div>
+        <div>
+          <div class="field-head">
+            <label for="s-shares" id="s-shares-label">Shares</label>
+            <button type="button" class="mode-toggle" id="s-mode-btn">Enter $ instead</button>
+          </div>
+          <input id="s-shares" type="number" step="any" min="0.000001" placeholder="2.5" required inputmode="decimal">
+        </div>
         <div><label for="s-price">Price per share ($)</label><input id="s-price" type="number" step="any" min="0" placeholder="512.40" required inputmode="decimal"></div>
       </div>
+      <div class="mode-hint" id="s-mode-hint" hidden></div>
       <button class="btn btn-primary" type="submit">Add purchase</button>
     </form>
   </div>
@@ -474,18 +492,63 @@ document.querySelectorAll('nav button').forEach(b=>{
 
 /* =============== stocks =============== */
 document.getElementById('s-date').value=todayISO();
+let stockMode='shares'; // 'shares' | 'usd'
+const sModeBtn=document.getElementById('s-mode-btn');
+const sSharesInput=document.getElementById('s-shares');
+const sSharesLabel=document.getElementById('s-shares-label');
+const sModeHint=document.getElementById('s-mode-hint');
+sModeBtn.addEventListener('click',()=>{
+  stockMode=stockMode==='shares'?'usd':'shares';
+  if(stockMode==='usd'){
+    sSharesLabel.textContent='Amount invested ($)';
+    sSharesInput.placeholder='500';
+    sSharesInput.min='0.01';
+    sModeBtn.textContent='Enter shares instead';
+  }else{
+    sSharesLabel.textContent='Shares';
+    sSharesInput.placeholder='2.5';
+    sSharesInput.min='0.000001';
+    sModeBtn.textContent='Enter $ instead';
+  }
+  sSharesInput.value='';
+  updateModeHint();
+  sSharesInput.focus();
+});
+function updateModeHint(){
+  if(stockMode!=='usd'){sModeHint.hidden=true;return;}
+  const amt=parseFloat(sSharesInput.value);
+  const pr=parseFloat(document.getElementById('s-price').value);
+  if(amt>0&&pr>0){
+    sModeHint.hidden=false;
+    sModeHint.textContent='≈ '+(amt/pr).toLocaleString('en-US',{maximumFractionDigits:6})+' shares';
+  }else{
+    sModeHint.hidden=true;
+  }
+}
+sSharesInput.addEventListener('input',updateModeHint);
+document.getElementById('s-price').addEventListener('input',updateModeHint);
 document.getElementById('form-stock').addEventListener('submit',e=>{
   e.preventDefault();
   const t=document.getElementById('s-ticker').value.trim().toUpperCase();
-  const sh=parseFloat(document.getElementById('s-shares').value);
+  const v=parseFloat(sSharesInput.value);
   const pr=parseFloat(document.getElementById('s-price').value);
   const dt=document.getElementById('s-date').value;
+  let sh;
+  if(stockMode==='usd'){
+    if(!(pr>0)){toast('Price per share is needed to convert $ to shares');return;}
+    sh=v/pr;
+  }else{
+    sh=v;
+  }
   if(!t||!(sh>0)||!(pr>=0)||!dt)return;
   S.stocks.push({id:uid(),ticker:t,shares:sh,price:pr,date:dt});
   if(S.prices[t]==null)S.prices[t]=pr;
   save();renderAll();
   e.target.reset();document.getElementById('s-date').value=todayISO();
-  toast(t+' purchase added');
+  updateModeHint();
+  toast(stockMode==='usd'
+    ?t+' added · '+sh.toLocaleString('en-US',{maximumFractionDigits:6})+' sh'
+    :t+' purchase added');
 });
 
 function renderHoldings(){
@@ -544,7 +607,7 @@ function renderStockHistory(){
   if(!S.stocks.length){el.innerHTML='<div class="empty">Purchases you log will appear here.</div>';return;}
   el.innerHTML=[...S.stocks].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>
     `<div class="tx">
-      <span class="l">${s.date} · <b>${s.ticker}</b> · ${s.shares} sh @ ${fmt(s.price)}</span>
+      <span class="l">${s.date} · <b>${s.ticker}</b> · ${s.shares.toLocaleString('en-US',{maximumFractionDigits:6})} sh @ ${fmt(s.price)}</span>
       <span><span class="amt">${fmt(s.shares*s.price)}</span><button class="del" onclick="delStock('${s.id}')" aria-label="Delete purchase">✕</button></span>
     </div>`).join('');
 }
