@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#191923">
+<title>Finash</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#191923;
+  --ink-soft:#3d3d4a;
+  --ink-faint:#8a8a96;
+  --paper:#f6f5f1;
+  --card:#ffffff;
+  --teal:#75B09C;
+  --teal-deep:#4d8a75;
+  --teal-tint:#e6f1ed;
+  --gold:#F9DC5C;
+  --gold-deep:#c9a913;
+  --gold-tint:#fdf6d9;
+  --loss:#c0564d;
+  --loss-tint:#f7e6e4;
+  --line:#e4e2da;
+  --radius:14px;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --body:'Outfit',system-ui,sans-serif;
+  --display:'Fraunces',Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--body);
+  background:var(--paper);
+  color:var(--ink);
+  min-height:100vh;
+  padding-bottom:88px;
+}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit}
+
+/* ---------- header ---------- */
+header{
+  background:var(--ink);
+  color:var(--paper);
+  padding:calc(env(safe-area-inset-top,0px) + 20px) 20px 18px;
+}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{
+  font-family:var(--display);
+  font-weight:600;
+  font-size:1.5rem;
+  letter-spacing:.01em;
+}
+.brand .tick{
+  font-family:var(--mono);
+  font-size:.7rem;
+  color:var(--gold);
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+/* ---------- tabs ---------- */
+nav{
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--ink);
+  display:flex;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  z-index:50;
+}
+nav button{
+  flex:1;
+  background:none;border:none;
+  color:#9a9aa6;
+  padding:14px 0 12px;
+  font-size:.78rem;
+  font-weight:600;
+  letter-spacing:.04em;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+nav button svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+nav button.active{color:var(--gold)}
+nav button:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+
+/* ---------- layout ---------- */
+main{max-width:640px;margin:0 auto;padding:20px 16px 24px}
+.view{display:none}
+.view.active{display:block}
+.card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:18px;
+  margin-bottom:14px;
+}
+h2{
+  font-family:var(--display);
+  font-weight:600;
+  font-size:1.15rem;
+  margin-bottom:12px;
+}
+.eyebrow{
+  font-family:var(--mono);
+  font-size:.66rem;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--ink-faint);
+  margin-bottom:6px;
+}
+
+/* ---------- hero ---------- */
+.hero{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:22px 18px 18px;
+  margin-bottom:14px;
+}
+.hero .big{
+  font-family:var(--mono);
+  font-weight:600;
+  font-size:2.2rem;
+  letter-spacing:-.01em;
+  font-variant-numeric:tabular-nums;
+}
+.comp-bar{
+  display:flex;height:12px;border-radius:6px;overflow:hidden;
+  margin:14px 0 8px;background:var(--line);
+}
+.comp-bar .seg-invest{background:var(--teal)}
+.comp-bar .seg-save{background:var(--gold)}
+.comp-legend{display:flex;gap:18px;font-size:.8rem;color:var(--ink-soft)}
+.comp-legend .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.comp-legend .dot.t{background:var(--teal)}
+.comp-legend .dot.g{background:var(--gold)}
+.comp-legend b{font-family:var(--mono);font-weight:600}
+
+.stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.stat{
+  background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);padding:14px;
+}
+.stat .val{font-family:var(--mono);font-weight:600;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.stat .lbl{font-size:.75rem;color:var(--ink-faint);margin-top:2px}
+
+/* ---------- chart ---------- */
+.chart-wrap svg{width:100%;height:auto;display:block}
+.chart-note{font-size:.75rem;color:var(--ink-faint);margin-top:6px}
+
+/* ---------- forms ---------- */
+form .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+form .row.single{grid-template-columns:1fr}
+label{display:block;font-size:.75rem;font-weight:600;color:var(--ink-soft);margin-bottom:4px}
+input,select{
+  width:100%;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 12px;
+  font-size:16px;
+  background:#fff;
+  color:var(--ink);
+}
+input:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:var(--teal)}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  border:none;border-radius:10px;
+  padding:11px 18px;
+  font-weight:600;font-size:.9rem;
+}
+.btn-primary{background:var(--ink);color:#fff;width:100%}
+.btn-primary:active{transform:scale(.99)}
+.btn-ghost{background:none;border:1px solid var(--line);color:var(--ink-soft)}
+.btn:focus-visible{outline:2px solid var(--teal-deep);outline-offset:2px}
+
+/* ---------- tables / lists ---------- */
+.holding{
+  border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;margin-bottom:10px;background:#fff;
+}
+.holding-top{display:flex;justify-content:space-between;align-items:baseline}
+.holding .tkr{font-family:var(--mono);font-weight:600;font-size:1rem}
+.holding .shares{font-size:.78rem;color:var(--ink-faint)}
+.holding-mid{display:flex;justify-content:space-between;margin-top:8px;font-size:.85rem}
+.holding-mid .m{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.gain{color:var(--teal-deep);font-weight:600}
+.lossc{color:var(--loss);font-weight:600}
+.price-edit{display:flex;gap:8px;margin-top:10px;align-items:center}
+.price-edit input{max-width:130px;padding:7px 10px;font-size:14px;font-family:var(--mono)}
+.price-edit button{padding:7px 12px;font-size:.78rem}
+
+.tx{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 2px;border-bottom:1px solid var(--line);
+  font-size:.85rem;
+}
+.tx:last-child{border-bottom:none}
+.tx .l{color:var(--ink-soft)}
+.tx .l b{font-family:var(--mono);color:var(--ink)}
+.tx .amt{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+.tx .del{
+  background:none;border:none;color:var(--ink-faint);
+  font-size:1rem;padding:4px 6px;margin-left:8px;line-height:1;
+}
+.tx .del:hover{color:var(--loss)}
+
+/* ---------- allocation bar ---------- */
+.alloc-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--line);margin-bottom:10px}
+.alloc-legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:.78rem;color:var(--ink-soft)}
+.alloc-legend .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}
+
+/* ---------- savings ---------- */
+.goal-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.goal-head .pct{font-family:var(--mono);font-weight:600;color:var(--teal-deep)}
+.progress{
+  height:16px;border-radius:8px;background:var(--line);overflow:hidden;
+}
+.progress .fill{
+  height:100%;background:linear-gradient(90deg,var(--teal),var(--gold));
+  border-radius:8px;transition:width .5s ease;min-width:0;
+}
+.goal-sub{display:flex;justify-content:space-between;font-size:.78rem;color:var(--ink-faint);margin-top:6px;font-family:var(--mono)}
+
+.streak{display:grid;grid-template-columns:repeat(12,1fr);gap:6px;margin-top:4px}
+.coin{
+  aspect-ratio:1;border-radius:50%;
+  background:var(--line);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.55rem;font-family:var(--mono);color:var(--ink-faint);
+  border:1.5px solid transparent;
+}
+.coin.hit{background:var(--gold);color:var(--ink);border-color:var(--gold-deep);font-weight:600}
+.coin.part{background:var(--gold-tint);color:var(--gold-deep);border-color:var(--gold)}
+.coin.now{outline:2px solid var(--ink);outline-offset:2px}
+.streak-note{font-size:.75rem;color:var(--ink-faint);margin-top:10px}
+
+/* ---------- misc ---------- */
+.empty{
+  text-align:center;color:var(--ink-faint);
+  padding:22px 10px;font-size:.88rem;line-height:1.5;
+}
+.empty b{color:var(--ink-soft)}
+.actions{display:flex;gap:10px;margin-top:4px}
+.actions .btn{flex:1;font-size:.82rem;padding:10px}
+.toast{
+  position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(8px);
+  background:var(--ink);color:#fff;
+  padding:10px 18px;border-radius:10px;font-size:.85rem;
+  opacity:0;pointer-events:none;transition:all .25s ease;z-index:99;
+  white-space:nowrap;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+details.settings summary{
+  cursor:pointer;font-weight:600;font-size:.85rem;color:var(--ink-soft);
+  padding:4px 0;list-style:none;
+}
+details.settings summary::before{content:"▸ ";font-size:.7rem}
+details.settings[open] summary::before{content:"▾ "}
+details.settings form{margin-top:12px}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>Finash</h1>
+    <span class="tick">invest · save · home</span>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ OVERVIEW ============ -->
+<section class="view active" id="view-overview">
+  <div class="hero">
+    <div class="eyebrow">Net progress</div>
+    <div class="big" id="ov-total">$0.00</div>
+    <div class="comp-bar" aria-hidden="true">
+      <div class="seg-invest" id="ov-seg-invest" style="width:0%"></div>
+      <div class="seg-save" id="ov-seg-save" style="width:0%"></div>
+    </div>
+    <div class="comp-legend">
+      <span><span class="dot t"></span>Invested <b id="ov-invested">$0</b></span>
+      <span><span class="dot g"></span>Saved <b id="ov-saved">$0</b></span>
+    </div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat"><div class="val" id="ov-gain">—</div><div class="lbl">Portfolio gain / loss</div></div>
+    <div class="stat"><div class="val" id="ov-pace">—</div><div class="lbl">Months to savings goal at current pace</div></div>
+  </div>
+
+  <div class="card chart-wrap">
+    <h2>Growth over time</h2>
+    <div id="ov-chart"></div>
+    <div class="chart-note">Cumulative contributions: stock purchases at cost + savings deposits.</div>
+  </div>
+
+  <div class="card">
+    <h2>Backup</h2>
+    <div class="actions">
+      <button class="btn btn-ghost" id="btn-export-csv">Export CSV</button>
+      <button class="btn btn-ghost" id="btn-export-json">Backup JSON</button>
+      <button class="btn btn-ghost" id="btn-import-json">Restore</button>
+    </div>
+    <input type="file" id="import-file" accept="application/json" hidden>
+  </div>
+</section>
+
+<!-- ============ STOCKS ============ -->
+<section class="view" id="view-stocks">
+  <div class="card">
+    <h2>Log a purchase</h2>
+    <form id="form-stock">
+      <div class="row">
+        <div><label for="s-ticker">Ticker</label><input id="s-ticker" placeholder="VOO" required maxlength="8" autocapitalize="characters" autocomplete="off"></div>
+        <div><label for="s-date">Date</label><input id="s-date" type="date" required></div>
+      </div>
+      <div class="row">
+        <div><label for="s-shares">Shares</label><input id="s-shares" type="number" step="any" min="0.000001" placeholder="2.5" required inputmode="decimal"></div>
+        <div><label for="s-price">Price per share ($)</label><input id="s-price" type="number" step="any" min="0" placeholder="512.40" required inputmode="decimal"></div>
+      </div>
+      <button class="btn btn-primary" type="submit">Add purchase</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Holdings</h2>
+    <div id="alloc"></div>
+    <div id="holdings"></div>
+  </div>
+
+  <div class="card">
+    <h2>Purchase history</h2>
+    <div id="stock-history"></div>
+  </div>
+</section>
+
+<!-- ============ SAVINGS ============ -->
+<section class="view" id="view-savings">
+  <div class="card">
+    <div class="goal-head">
+      <h2 style="margin:0" id="goal-title">Savings goal</h2>
+      <span class="pct" id="goal-pct">0%</span>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="goal-bar-wrap">
+      <div class="fill" id="goal-fill" style="width:0%"></div>
+    </div>
+    <div class="goal-sub"><span id="goal-cur">$0</span><span id="goal-target">of $0</span></div>
+
+    <details class="settings" style="margin-top:14px">
+      <summary>Goal settings</summary>
+      <form id="form-goal">
+        <div class="row">
+          <div><label for="g-amount">Goal amount ($)</label><input id="g-amount" type="number" step="any" min="0" placeholder="20000" inputmode="decimal"></div>
+          <div><label for="g-monthly">Monthly deposit target ($)</label><input id="g-monthly" type="number" step="any" min="0" placeholder="500" inputmode="decimal"></div>
+        </div>
+        <div class="row">
+          <div><label for="g-date">Target date (optional)</label><input id="g-date" type="date"></div>
+          <div><label for="g-start">Starting balance ($)</label><input id="g-start" type="number" step="any" min="0" placeholder="0" inputmode="decimal"></div>
+        </div>
+        <button class="btn btn-primary" type="submit">Save settings</button>
+      </form>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>Log a deposit</h2>
+    <form id="form-deposit">
+      <div class="row">
+        <div><label for="d-amount">Amount ($)</label><input id="d-amount" type="number" step="any" min="0.01" placeholder="500" required inputmode="decimal"></div>
+        <div><label for="d-date">Date</label><input id="d-date" type="date" required></div>
+      </div>
+      <button class="btn btn-primary" type="submit">Add deposit</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Monthly consistency</h2>
+    <div class="streak" id="streak"></div>
+    <div class="streak-note" id="streak-note">Each coin is a month. Gold = hit your monthly target.</div>
+  </div>
+
+  <div class="card">
+    <h2>Deposit history</h2>
+    <div id="deposit-history"></div>
+  </div>
+</section>
+
+</main>
+
+<nav aria-label="Sections">
+  <button data-view="overview" class="active" aria-label="Overview">
+    <svg viewBox="0 0 24 24"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
+    Overview
+  </button>
+  <button data-view="stocks" aria-label="Stocks">
+    <svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>
+    Stocks
+  </button>
+  <button data-view="savings" aria-label="Savings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9 10.5c0-1 1.2-1.8 3-1.8s3 .8 3 1.8-1.2 1.6-3 1.8-3 .8-3 1.8 1.2 1.8 3 1.8 3-.8 3-1.8"/></svg>
+    Savings
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =============== state =============== */
+const KEY='finash-v1';
+const PALETTE=['#75B09C','#F9DC5C','#4d8a75','#c9a913','#191923','#a8c9bd','#e3cf6f','#6b6b78'];
+let S=load();
+function load(){
+  try{
+    const raw=localStorage.getItem(KEY);
+    if(raw){const p=JSON.parse(raw);return{
+      stocks:p.stocks||[],prices:p.prices||{},deposits:p.deposits||[],
+      settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0},p.settings||{})
+    };}
+  }catch(e){}
+  return{stocks:[],prices:{},deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0}};
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));}
+const fmt=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmt0=n=>'$'+Math.round(n).toLocaleString('en-US');
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const todayISO=()=>new Date().toISOString().slice(0,10);
+
+/* =============== derived =============== */
+function totalInvested(){return S.stocks.reduce((a,s)=>a+s.shares*s.price,0);}
+function totalSaved(){return (S.settings.startBalance||0)+S.deposits.reduce((a,d)=>a+d.amount,0);}
+function marketValue(){
+  return S.stocks.reduce((a,s)=>{
+    const cp=S.prices[s.ticker];
+    return a+s.shares*(cp!=null?cp:s.price);
+  },0);
+}
+function holdingsByTicker(){
+  const m={};
+  for(const s of S.stocks){
+    if(!m[s.ticker])m[s.ticker]={ticker:s.ticker,shares:0,cost:0};
+    m[s.ticker].shares+=s.shares;m[s.ticker].cost+=s.shares*s.price;
+  }
+  return Object.values(m).sort((a,b)=>b.cost-a.cost);
+}
+
+/* =============== toast =============== */
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+/* =============== tabs =============== */
+document.querySelectorAll('nav button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById('view-'+b.dataset.view).classList.add('active');
+    window.scrollTo({top:0});
+  });
+});
+
+/* =============== stocks =============== */
+document.getElementById('s-date').value=todayISO();
+document.getElementById('form-stock').addEventListener('submit',e=>{
+  e.preventDefault();
+  const t=document.getElementById('s-ticker').value.trim().toUpperCase();
+  const sh=parseFloat(document.getElementById('s-shares').value);
+  const pr=parseFloat(document.getElementById('s-price').value);
+  const dt=document.getElementById('s-date').value;
+  if(!t||!(sh>0)||!(pr>=0)||!dt)return;
+  S.stocks.push({id:uid(),ticker:t,shares:sh,price:pr,date:dt});
+  if(S.prices[t]==null)S.prices[t]=pr;
+  save();renderAll();
+  e.target.reset();document.getElementById('s-date').value=todayISO();
+  toast(t+' purchase added');
+});
+
+function renderHoldings(){
+  const wrap=document.getElementById('holdings');
+  const alloc=document.getElementById('alloc');
+  const hs=holdingsByTicker();
+  if(!hs.length){
+    alloc.innerHTML='';
+    wrap.innerHTML='<div class="empty"><b>No holdings yet.</b><br>Log your first stock purchase above — it takes ten seconds.</div>';
+    return;
+  }
+  const totalCost=hs.reduce((a,h)=>a+h.cost,0);
+  alloc.innerHTML='<div class="alloc-bar">'+hs.map((h,i)=>
+    `<div style="width:${(h.cost/totalCost*100).toFixed(2)}%;background:${PALETTE[i%PALETTE.length]}"></div>`
+  ).join('')+'</div><div class="alloc-legend">'+hs.map((h,i)=>
+    `<span><span class="sw" style="background:${PALETTE[i%PALETTE.length]}"></span>${h.ticker} ${(h.cost/totalCost*100).toFixed(0)}%</span>`
+  ).join('')+'</div><div style="height:14px"></div>';
+
+  wrap.innerHTML=hs.map(h=>{
+    const avg=h.cost/h.shares;
+    const cp=S.prices[h.ticker];
+    let glHtml='<span style="color:var(--ink-faint);font-size:.8rem">set current price ↓</span>';
+    let mv=h.cost;
+    if(cp!=null){
+      mv=h.shares*cp;
+      const gl=mv-h.cost;
+      const pct=h.cost?(gl/h.cost*100):0;
+      const cls=gl>=0?'gain':'lossc';
+      const sign=gl>=0?'+':'−';
+      glHtml=`<span class="${cls}">${sign}${fmt(Math.abs(gl))} (${sign}${Math.abs(pct).toFixed(1)}%)</span>`;
+    }
+    return `<div class="holding">
+      <div class="holding-top">
+        <span class="tkr">${h.ticker}</span>
+        <span class="shares">${h.shares.toLocaleString('en-US',{maximumFractionDigits:6})} sh · avg ${fmt(avg)}</span>
+      </div>
+      <div class="holding-mid">
+        <span>Cost <span class="m">${fmt(h.cost)}</span></span>
+        <span>Value <span class="m">${fmt(mv)}</span></span>
+      </div>
+      <div class="holding-mid" style="justify-content:flex-end">${glHtml}</div>
+      <div class="price-edit">
+        <input type="number" step="any" min="0" inputmode="decimal" placeholder="current $" value="${cp!=null?cp:''}" id="cp-${h.ticker}" aria-label="Current price for ${h.ticker}">
+        <button class="btn btn-ghost" onclick="setPrice('${h.ticker}')">Update price</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function setPrice(t){
+  const v=parseFloat(document.getElementById('cp-'+t).value);
+  if(!(v>=0)){toast('Enter a valid price');return;}
+  S.prices[t]=v;save();renderAll();toast(t+' price updated');
+}
+function renderStockHistory(){
+  const el=document.getElementById('stock-history');
+  if(!S.stocks.length){el.innerHTML='<div class="empty">Purchases you log will appear here.</div>';return;}
+  el.innerHTML=[...S.stocks].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>
+    `<div class="tx">
+      <span class="l">${s.date} · <b>${s.ticker}</b> · ${s.shares} sh @ ${fmt(s.price)}</span>
+      <span><span class="amt">${fmt(s.shares*s.price)}</span><button class="del" onclick="delStock('${s.id}')" aria-label="Delete purchase">✕</button></span>
+    </div>`).join('');
+}
+function delStock(id){
+  const s=S.stocks.find(x=>x.id===id);
+  if(!confirm('Delete '+s.ticker+' purchase of '+fmt(s.shares*s.price)+'?'))return;
+  S.stocks=S.stocks.filter(x=>x.id!==id);
+  if(!S.stocks.some(x=>x.ticker===s.ticker))delete S.prices[s.ticker];
+  save();renderAll();toast('Purchase deleted');
+}
+
+/* =============== savings =============== */
+document.getElementById('d-date').value=todayISO();
+document.getElementById('form-deposit').addEventListener('submit',e=>{
+  e.preventDefault();
+  const a=parseFloat(document.getElementById('d-amount').value);
+  const dt=document.getElementById('d-date').value;
+  if(!(a>0)||!dt)return;
+  S.deposits.push({id:uid(),amount:a,date:dt});
+  save();renderAll();
+  e.target.reset();document.getElementById('d-date').value=todayISO();
+  toast('Deposit added');
+});
+document.getElementById('form-goal').addEventListener('submit',e=>{
+  e.preventDefault();
+  S.settings.goalAmount=parseFloat(document.getElementById('g-amount').value)||0;
+  S.settings.monthlyTarget=parseFloat(document.getElementById('g-monthly').value)||0;
+  S.settings.goalDate=document.getElementById('g-date').value||'';
+  S.settings.startBalance=parseFloat(document.getElementById('g-start').value)||0;
+  save();renderAll();toast('Goal saved');
+});
+function hydrateGoalForm(){
+  document.getElementById('g-amount').value=S.settings.goalAmount||'';
+  document.getElementById('g-monthly').value=S.settings.monthlyTarget||'';
+  document.getElementById('g-date').value=S.settings.goalDate||'';
+  document.getElementById('g-start').value=S.settings.startBalance||'';
+}
+function renderGoal(){
+  const saved=totalSaved();
+  const goal=S.settings.goalAmount;
+  const pct=goal>0?Math.min(100,saved/goal*100):0;
+  document.getElementById('goal-pct').textContent=goal>0?pct.toFixed(0)+'%':'—';
+  document.getElementById('goal-fill').style.width=pct+'%';
+  document.getElementById('goal-bar-wrap').setAttribute('aria-valuenow',pct.toFixed(0));
+  document.getElementById('goal-cur').textContent=fmt0(saved);
+  document.getElementById('goal-target').textContent=goal>0?'of '+fmt0(goal):'set a goal below';
+  document.getElementById('goal-title').textContent=S.settings.goalDate?('Goal by '+S.settings.goalDate):'Savings goal';
+}
+function monthKey(d){return d.slice(0,7);}
+function renderStreak(){
+  const el=document.getElementById('streak');
+  const target=S.settings.monthlyTarget;
+  const byMonth={};
+  for(const d of S.deposits){byMonth[monthKey(d.date)]=(byMonth[monthKey(d.date)]||0)+d.amount;}
+  const now=new Date();
+  let html='';
+  for(let i=11;i>=0;i--){
+    const dt=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const k=dt.toISOString().slice(0,7);
+    const sum=byMonth[k]||0;
+    let cls='coin';
+    if(target>0){
+      if(sum>=target)cls+=' hit';
+      else if(sum>0)cls+=' part';
+    }else if(sum>0)cls+=' hit';
+    if(i===0)cls+=' now';
+    const lbl=dt.toLocaleString('en-US',{month:'narrow'});
+    html+=`<div class="${cls}" title="${k}: ${fmt0(sum)}">${lbl}</div>`;
+  }
+  el.innerHTML=html;
+  document.getElementById('streak-note').textContent=target>0
+    ?`Each coin is a month. Gold = hit your ${fmt0(target)} monthly target; pale gold = partial.`
+    :'Each coin is a month. Set a monthly target in goal settings to track hits.';
+}
+function renderDepositHistory(){
+  const el=document.getElementById('deposit-history');
+  if(!S.deposits.length){el.innerHTML='<div class="empty"><b>No deposits yet.</b><br>Log your monthly deposit above to start the streak.</div>';return;}
+  el.innerHTML=[...S.deposits].sort((a,b)=>b.date.localeCompare(a.date)).map(d=>
+    `<div class="tx">
+      <span class="l">${d.date}</span>
+      <span><span class="amt">${fmt(d.amount)}</span><button class="del" onclick="delDeposit('${d.id}')" aria-label="Delete deposit">✕</button></span>
+    </div>`).join('');
+}
+function delDeposit(id){
+  const d=S.deposits.find(x=>x.id===id);
+  if(!confirm('Delete deposit of '+fmt(d.amount)+'?'))return;
+  S.deposits=S.deposits.filter(x=>x.id!==id);
+  save();renderAll();toast('Deposit deleted');
+}
+
+/* =============== overview =============== */
+function renderOverview(){
+  const inv=totalInvested(),sav=totalSaved(),mv=marketValue();
+  const total=mv+sav;
+  document.getElementById('ov-total').textContent=fmt(total);
+  document.getElementById('ov-invested').textContent=fmt0(mv);
+  document.getElementById('ov-saved').textContent=fmt0(sav);
+  const sum=mv+sav||1;
+  document.getElementById('ov-seg-invest').style.width=(mv/sum*100)+'%';
+  document.getElementById('ov-seg-save').style.width=(sav/sum*100)+'%';
+
+  const gl=mv-inv;
+  const glEl=document.getElementById('ov-gain');
+  if(inv>0){
+    const sign=gl>=0?'+':'−';
+    glEl.textContent=sign+'$'+Math.abs(gl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    glEl.style.color=gl>=0?'var(--teal-deep)':'var(--loss)';
+  }else{glEl.textContent='—';glEl.style.color='';}
+
+  const paceEl=document.getElementById('ov-pace');
+  const goal=S.settings.goalAmount;
+  if(goal>0&&sav<goal){
+    const months=new Set(S.deposits.map(d=>monthKey(d.date))).size;
+    const perMonth=months>0?S.deposits.reduce((a,d)=>a+d.amount,0)/months:S.settings.monthlyTarget;
+    paceEl.textContent=perMonth>0?Math.ceil((goal-sav)/perMonth)+' mo':'—';
+  }else if(goal>0){paceEl.textContent='Done 🎉';}
+  else paceEl.textContent='—';
+
+  renderChart();
+}
+function renderChart(){
+  const events=[
+    ...S.stocks.map(s=>({date:s.date,amt:s.shares*s.price})),
+    ...S.deposits.map(d=>({date:d.date,amt:d.amount}))
+  ].sort((a,b)=>a.date.localeCompare(b.date));
+  const el=document.getElementById('ov-chart');
+  if(events.length<2){
+    el.innerHTML='<div class="empty">Your growth line appears after two or more entries.</div>';
+    return;
+  }
+  let cum=S.settings.startBalance||0;
+  const pts=events.map(e=>{cum+=e.amt;return{d:new Date(e.date).getTime(),v:cum};});
+  const W=560,H=200,P=28;
+  const minX=pts[0].d,maxX=pts[pts.length-1].d||minX+1;
+  const maxY=Math.max(...pts.map(p=>p.v))*1.08;
+  const x=t=>P+(maxX===minX?0:(t-minX)/(maxX-minX))*(W-2*P);
+  const y=v=>H-P-(v/maxY)*(H-2*P);
+  const path=pts.map((p,i)=>(i?'L':'M')+x(p.d).toFixed(1)+' '+y(p.v).toFixed(1)).join(' ');
+  const area=path+` L${x(pts[pts.length-1].d).toFixed(1)} ${H-P} L${x(pts[0].d).toFixed(1)} ${H-P} Z`;
+  const gridY=[0.25,0.5,0.75,1].map(f=>{
+    const val=maxY*f;
+    return `<line x1="${P}" y1="${y(val)}" x2="${W-P}" y2="${y(val)}" stroke="var(--line)" stroke-width="1"/>
+    <text x="${W-P}" y="${y(val)-4}" text-anchor="end" font-size="9" fill="var(--ink-faint)" font-family="var(--mono)">${fmt0(val)}</text>`;
+  }).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cumulative contributions over time">
+    ${gridY}
+    <path d="${area}" fill="var(--teal-tint)"/>
+    <path d="${path}" fill="none" stroke="var(--teal-deep)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${x(pts[pts.length-1].d)}" cy="${y(pts[pts.length-1].v)}" r="4" fill="var(--gold)" stroke="var(--ink)" stroke-width="1.5"/>
+  </svg>`;
+}
+
+/* =============== export / import =============== */
+function download(name,content,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type}));
+  a.download=name;a.click();URL.revokeObjectURL(a.href);
+}
+document.getElementById('btn-export-csv').addEventListener('click',()=>{
+  let csv='type,date,ticker,shares,price_per_share,amount\n';
+  for(const s of S.stocks)csv+=`stock,${s.date},${s.ticker},${s.shares},${s.price},${(s.shares*s.price).toFixed(2)}\n`;
+  for(const d of S.deposits)csv+=`deposit,${d.date},,,,${d.amount.toFixed(2)}\n`;
+  download('finash-'+todayISO()+'.csv',csv,'text/csv');
+  toast('CSV exported');
+});
+document.getElementById('btn-export-json').addEventListener('click',()=>{
+  download('finash-backup-'+todayISO()+'.json',JSON.stringify(S,null,2),'application/json');
+  toast('Backup downloaded');
+});
+document.getElementById('btn-import-json').addEventListener('click',()=>document.getElementById('import-file').click());
+document.getElementById('import-file').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const p=JSON.parse(r.result);
+      if(!p||!Array.isArray(p.stocks)||!Array.isArray(p.deposits))throw 0;
+      if(!confirm('Replace current data with this backup?'))return;
+      S={stocks:p.stocks,prices:p.prices||{},deposits:p.deposits,
+         settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0},p.settings||{})};
+      save();hydrateGoalForm();renderAll();toast('Backup restored');
+    }catch(_){toast('That file is not a valid backup');}
+  };
+  r.readAsText(f);
+  e.target.value='';
+});
+
+/* =============== render =============== */
+function renderAll(){
+  renderHoldings();renderStockHistory();
+  renderGoal();renderStreak();renderDepositHistory();
+  renderOverview();
+}
+hydrateGoalForm();
+renderAll();
+
+/* =============== PWA =============== */
+if('serviceWorker'in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
