@@ -205,9 +205,16 @@ input:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:var(-
 .holding-mid .m{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .gain{color:var(--teal-deep);font-weight:600}
 .lossc{color:var(--loss);font-weight:600}
-.price-edit{display:flex;gap:8px;margin-top:10px;align-items:center}
-.price-edit input{max-width:130px;padding:7px 10px;font-size:14px;font-family:var(--mono)}
+.price-edit{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.price-edit input{max-width:118px;padding:7px 10px;font-size:14px;font-family:var(--mono)}
 .price-edit button{padding:7px 12px;font-size:.78rem}
+.target-line{font-size:.78rem;font-family:var(--mono);color:var(--ink-faint);margin-top:8px}
+.target-line.hit{color:var(--teal-deep);font-weight:600}
+.refresh-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.refresh-row .btn{font-size:.78rem;padding:8px 12px}
+.price-note{font-size:.72rem;color:var(--ink-faint);font-family:var(--mono)}
+.hint{font-size:.78rem;color:var(--ink-faint);margin:6px 0 10px;line-height:1.45}
+.hint a{color:var(--teal-deep)}
 
 .tx{
   display:flex;justify-content:space-between;align-items:center;
@@ -358,8 +365,20 @@ details.settings form{margin-top:12px}
 
   <div class="card">
     <h2>Holdings</h2>
+    <div class="refresh-row">
+      <button class="btn btn-ghost" id="btn-refresh-stocks">↻ Refresh live prices</button>
+      <span class="price-note" id="stock-price-note"></span>
+    </div>
     <div id="alloc"></div>
     <div id="holdings"></div>
+    <details class="settings" style="margin-top:10px">
+      <summary>Live price setup</summary>
+      <p class="hint">Stock quotes come from Finnhub. Create a free account at <a href="https://finnhub.io" target="_blank" rel="noopener">finnhub.io</a>, copy your API key, and paste it here. The key is stored only on this device.</p>
+      <form id="form-finnhub">
+        <div class="row single"><div><label for="fh-key">Finnhub API key</label><input id="fh-key" autocomplete="off" placeholder="paste your key"></div></div>
+        <button class="btn btn-primary" type="submit">Save key</button>
+      </form>
+    </details>
   </div>
 
   <div class="card">
@@ -394,6 +413,10 @@ details.settings form{margin-top:12px}
 
   <div class="card">
     <h2>Holdings</h2>
+    <div class="refresh-row">
+      <button class="btn btn-ghost" id="btn-refresh-crypto">↻ Refresh live prices</button>
+      <span class="price-note" id="crypto-price-note"></span>
+    </div>
     <div id="crypto-alloc"></div>
     <div id="crypto-holdings"></div>
   </div>
@@ -487,13 +510,14 @@ function load(){
   try{
     const raw=localStorage.getItem(KEY);
     if(raw){const p=JSON.parse(raw);return{
-      stocks:p.stocks||[],prices:p.prices||{},
-      crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},
+      stocks:p.stocks||[],prices:p.prices||{},targets:p.targets||{},
+      crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},
+      pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
       deposits:p.deposits||[],
-      settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0},p.settings||{})
+      settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})
     };}
   }catch(e){}
-  return{stocks:[],prices:{},crypto:[],cryptoPrices:{},deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0}};
+  return{stocks:[],prices:{},targets:{},crypto:[],cryptoPrices:{},cryptoTargets:{},pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''}};
 }
 function save(){localStorage.setItem(KEY,JSON.stringify(S));}
 const fmt=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -653,17 +677,36 @@ function renderHoldings(){
         <span>Value <span class="m">${fmt(mv)}</span></span>
       </div>
       <div class="holding-mid" style="justify-content:flex-end">${glHtml}</div>
+      ${targetLine(S.targets[h.ticker],cp)}
       <div class="price-edit">
         <input type="number" step="any" min="0" inputmode="decimal" placeholder="current $" value="${cp!=null?cp:''}" id="cp-${h.ticker}" aria-label="Current price for ${h.ticker}">
-        <button class="btn btn-ghost" onclick="setPrice('${h.ticker}')">Update price</button>
+        <input type="number" step="any" min="0" inputmode="decimal" placeholder="sell target $" value="${S.targets[h.ticker]!=null?S.targets[h.ticker]:''}" id="tp-${h.ticker}" aria-label="Sell target for ${h.ticker}">
+        <button class="btn btn-ghost" onclick="savePrices('${h.ticker}')">Save</button>
       </div>
     </div>`;
   }).join('');
 }
-function setPrice(t){
-  const v=parseFloat(document.getElementById('cp-'+t).value);
-  if(!(v>=0)){toast('Enter a valid price');return;}
-  S.prices[t]=v;save();renderAll();toast(t+' price updated');
+function targetLine(tp,cp){
+  if(!(tp>0))return'';
+  if(cp!=null&&cp>=tp)return`<div class="target-line hit">🎯 Sell target ${fmt(tp)} hit — now ${fmt(cp)}</div>`;
+  if(cp!=null)return`<div class="target-line">Sell target ${fmt(tp)} · ${(cp/tp*100).toFixed(0)}% there</div>`;
+  return`<div class="target-line">Sell target ${fmt(tp)}</div>`;
+}
+function savePrices(t){
+  const cpv=document.getElementById('cp-'+t).value.trim();
+  const tpv=document.getElementById('tp-'+t).value.trim();
+  if(cpv!==''){
+    const v=parseFloat(cpv);
+    if(!(v>=0)){toast('Enter a valid current price');return;}
+    S.prices[t]=v;
+  }
+  if(tpv===''){delete S.targets[t];}
+  else{
+    const v=parseFloat(tpv);
+    if(!(v>=0)){toast('Enter a valid target price');return;}
+    S.targets[t]=v;
+  }
+  save();renderAll();toast(t+' updated');
 }
 function renderStockHistory(){
   const el=document.getElementById('stock-history');
@@ -678,7 +721,7 @@ function delStock(id){
   const s=S.stocks.find(x=>x.id===id);
   if(!confirm('Delete '+s.ticker+' purchase of '+fmt(s.shares*s.price)+'?'))return;
   S.stocks=S.stocks.filter(x=>x.id!==id);
-  if(!S.stocks.some(x=>x.ticker===s.ticker))delete S.prices[s.ticker];
+  if(!S.stocks.some(x=>x.ticker===s.ticker)){delete S.prices[s.ticker];delete S.targets[s.ticker];}
   save();renderAll();toast('Purchase deleted');
 }
 
@@ -783,17 +826,30 @@ function renderCryptoHoldings(){
         <span>Value <span class="m">${fmt(mv)}</span></span>
       </div>
       <div class="holding-mid" style="justify-content:flex-end">${glHtml}</div>
+      ${targetLine(S.cryptoTargets[h.symbol],cp)}
       <div class="price-edit">
         <input type="number" step="any" min="0" inputmode="decimal" placeholder="current $" value="${cp!=null?cp:''}" id="ccp-${h.symbol}" aria-label="Current price for ${h.symbol}">
-        <button class="btn btn-ghost" onclick="setCryptoPrice('${h.symbol}')">Update price</button>
+        <input type="number" step="any" min="0" inputmode="decimal" placeholder="sell target $" value="${S.cryptoTargets[h.symbol]!=null?S.cryptoTargets[h.symbol]:''}" id="ctp-${h.symbol}" aria-label="Sell target for ${h.symbol}">
+        <button class="btn btn-ghost" onclick="saveCryptoPrices('${h.symbol}')">Save</button>
       </div>
     </div>`;
   }).join('');
 }
-function setCryptoPrice(sym){
-  const v=parseFloat(document.getElementById('ccp-'+sym).value);
-  if(!(v>=0)){toast('Enter a valid price');return;}
-  S.cryptoPrices[sym]=v;save();renderAll();toast(sym+' price updated');
+function saveCryptoPrices(sym){
+  const cpv=document.getElementById('ccp-'+sym).value.trim();
+  const tpv=document.getElementById('ctp-'+sym).value.trim();
+  if(cpv!==''){
+    const v=parseFloat(cpv);
+    if(!(v>=0)){toast('Enter a valid current price');return;}
+    S.cryptoPrices[sym]=v;
+  }
+  if(tpv===''){delete S.cryptoTargets[sym];}
+  else{
+    const v=parseFloat(tpv);
+    if(!(v>=0)){toast('Enter a valid target price');return;}
+    S.cryptoTargets[sym]=v;
+  }
+  save();renderAll();toast(sym+' updated');
 }
 function renderCryptoHistory(){
   const el=document.getElementById('crypto-history');
@@ -808,9 +864,83 @@ function delCrypto(id){
   const c=S.crypto.find(x=>x.id===id);
   if(!confirm('Delete '+c.symbol+' buy of '+fmt(c.qty*c.price)+'?'))return;
   S.crypto=S.crypto.filter(x=>x.id!==id);
-  if(!S.crypto.some(x=>x.symbol===c.symbol))delete S.cryptoPrices[c.symbol];
+  if(!S.crypto.some(x=>x.symbol===c.symbol)){delete S.cryptoPrices[c.symbol];delete S.cryptoTargets[c.symbol];}
   save();renderAll();toast('Buy deleted');
 }
+
+/* =============== live prices =============== */
+const CG_IDS={BTC:'bitcoin',ETH:'ethereum',SOL:'solana',XRP:'ripple',ADA:'cardano',DOGE:'dogecoin',DOT:'polkadot',LINK:'chainlink',AVAX:'avalanche-2',LTC:'litecoin',BNB:'binancecoin',MATIC:'matic-network',POL:'polygon-ecosystem-token',SHIB:'shiba-inu',TRX:'tron',UNI:'uniswap',ATOM:'cosmos',XLM:'stellar',NEAR:'near',APT:'aptos',ARB:'arbitrum',OP:'optimism',PEPE:'pepe',SUI:'sui',TON:'the-open-network',USDT:'tether',USDC:'usd-coin',BCH:'bitcoin-cash',ETC:'ethereum-classic',FIL:'filecoin',ICP:'internet-computer',HBAR:'hedera-hashgraph',VET:'vechain',ALGO:'algorand',AAVE:'aave',INJ:'injective-protocol'};
+function fmtUpdated(iso){
+  return 'updated '+new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+}
+function renderPriceNotes(){
+  document.getElementById('stock-price-note').textContent=S.pricesUpdated?fmtUpdated(S.pricesUpdated):'';
+  document.getElementById('crypto-price-note').textContent=S.cryptoPricesUpdated?fmtUpdated(S.cryptoPricesUpdated):'';
+}
+async function refreshCryptoPrices(){
+  const btn=document.getElementById('btn-refresh-crypto');
+  const syms=[...new Set(S.crypto.map(c=>c.symbol))];
+  if(!syms.length){toast('Log a crypto buy first');return;}
+  btn.disabled=true;btn.textContent='Fetching…';
+  try{
+    const pairs=[];const unknown=[];
+    for(const s of syms){if(CG_IDS[s])pairs.push({sym:s,id:CG_IDS[s]});else unknown.push(s);}
+    for(const s of unknown){
+      try{
+        const r=await fetch('https://api.coingecko.com/api/v3/search?query='+encodeURIComponent(s));
+        const j=await r.json();
+        const hit=(j.coins||[]).find(c=>c.symbol&&c.symbol.toUpperCase()===s);
+        if(hit)pairs.push({sym:s,id:hit.id});
+      }catch(e){}
+    }
+    if(!pairs.length){toast('Could not match any coins');return;}
+    const r=await fetch('https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids='+pairs.map(p=>p.id).join(','));
+    if(!r.ok)throw new Error('http '+r.status);
+    const j=await r.json();
+    let n=0;
+    for(const p of pairs){
+      if(j[p.id]&&j[p.id].usd!=null){S.cryptoPrices[p.sym]=j[p.id].usd;n++;}
+    }
+    if(n){S.cryptoPricesUpdated=new Date().toISOString();save();renderAll();}
+    toast(n?('Updated '+n+' coin'+(n===1?'':'s')):'No prices returned');
+  }catch(e){
+    toast('Price fetch failed — try again in a minute');
+  }finally{
+    btn.disabled=false;btn.textContent='↻ Refresh live prices';
+  }
+}
+async function refreshStockPrices(){
+  const btn=document.getElementById('btn-refresh-stocks');
+  const key=(S.settings.finnhubKey||'').trim();
+  if(!key){toast('Add your free Finnhub key in Live price setup ↓');return;}
+  const ts=[...new Set(S.stocks.map(s=>s.ticker))];
+  if(!ts.length){toast('Log a stock purchase first');return;}
+  btn.disabled=true;btn.textContent='Fetching…';
+  try{
+    let n=0;
+    for(const t of ts){
+      try{
+        const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(t)}&token=${encodeURIComponent(key)}`);
+        if(!r.ok)continue;
+        const j=await r.json();
+        if(j&&j.c>0){S.prices[t]=j.c;n++;}
+      }catch(e){}
+    }
+    if(n){S.pricesUpdated=new Date().toISOString();save();renderAll();}
+    toast(n?('Updated '+n+' ticker'+(n===1?'':'s')):'No quotes — check your key or tickers');
+  }finally{
+    btn.disabled=false;btn.textContent='↻ Refresh live prices';
+  }
+}
+document.getElementById('btn-refresh-crypto').addEventListener('click',refreshCryptoPrices);
+document.getElementById('btn-refresh-stocks').addEventListener('click',refreshStockPrices);
+document.getElementById('fh-key').value=S.settings.finnhubKey||'';
+document.getElementById('form-finnhub').addEventListener('submit',e=>{
+  e.preventDefault();
+  S.settings.finnhubKey=document.getElementById('fh-key').value.trim();
+  save();
+  toast(S.settings.finnhubKey?'Key saved':'Key cleared');
+});
 
 /* =============== savings =============== */
 document.getElementById('d-date').value=todayISO();
@@ -985,11 +1115,14 @@ document.getElementById('import-file').addEventListener('change',e=>{
       const p=JSON.parse(r.result);
       if(!p||!Array.isArray(p.stocks)||!Array.isArray(p.deposits))throw 0;
       if(!confirm('Replace current data with this backup?'))return;
-      S={stocks:p.stocks,prices:p.prices||{},
-         crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},
+      S={stocks:p.stocks,prices:p.prices||{},targets:p.targets||{},
+         crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},
+         pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
          deposits:p.deposits,
-         settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0},p.settings||{})};
-      save();hydrateGoalForm();renderAll();toast('Backup restored');
+         settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})};
+      save();hydrateGoalForm();
+      document.getElementById('fh-key').value=S.settings.finnhubKey||'';
+      renderAll();toast('Backup restored');
     }catch(_){toast('That file is not a valid backup');}
   };
   r.readAsText(f);
@@ -1000,6 +1133,7 @@ document.getElementById('import-file').addEventListener('change',e=>{
 function renderAll(){
   renderHoldings();renderStockHistory();
   renderCryptoHoldings();renderCryptoHistory();
+  renderPriceNotes();
   renderGoal();renderStreak();renderDepositHistory();
   renderOverview();
 }
