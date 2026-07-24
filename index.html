@@ -367,6 +367,7 @@ details.settings form{margin-top:12px}
     <h2>Holdings</h2>
     <div class="refresh-row">
       <button class="btn btn-ghost" id="btn-refresh-stocks">↻ Refresh live prices</button>
+      <button class="btn btn-ghost" id="btn-alerts-stocks">🔔 Enable alerts</button>
       <span class="price-note" id="stock-price-note"></span>
     </div>
     <div id="alloc"></div>
@@ -415,6 +416,7 @@ details.settings form{margin-top:12px}
     <h2>Holdings</h2>
     <div class="refresh-row">
       <button class="btn btn-ghost" id="btn-refresh-crypto">↻ Refresh live prices</button>
+      <button class="btn btn-ghost" id="btn-alerts-crypto">🔔 Enable alerts</button>
       <span class="price-note" id="crypto-price-note"></span>
     </div>
     <div id="crypto-alloc"></div>
@@ -510,14 +512,14 @@ function load(){
   try{
     const raw=localStorage.getItem(KEY);
     if(raw){const p=JSON.parse(raw);return{
-      stocks:p.stocks||[],prices:p.prices||{},targets:p.targets||{},
-      crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},
+      stocks:p.stocks||[],prices:p.prices||{},targets:p.targets||{},alerted:p.alerted||{},
+      crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},cryptoAlerted:p.cryptoAlerted||{},
       pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
       deposits:p.deposits||[],
       settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})
     };}
   }catch(e){}
-  return{stocks:[],prices:{},targets:{},crypto:[],cryptoPrices:{},cryptoTargets:{},pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''}};
+  return{stocks:[],prices:{},targets:{},alerted:{},crypto:[],cryptoPrices:{},cryptoTargets:{},cryptoAlerted:{},pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''}};
 }
 function save(){localStorage.setItem(KEY,JSON.stringify(S));}
 const fmt=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -704,9 +706,11 @@ function savePrices(t){
   else{
     const v=parseFloat(tpv);
     if(!(v>=0)){toast('Enter a valid target price');return;}
+    if(S.targets[t]!==v)delete S.alerted[t];
     S.targets[t]=v;
   }
   save();renderAll();toast(t+' updated');
+  checkTargetHits();
 }
 function renderStockHistory(){
   const el=document.getElementById('stock-history');
@@ -721,7 +725,7 @@ function delStock(id){
   const s=S.stocks.find(x=>x.id===id);
   if(!confirm('Delete '+s.ticker+' purchase of '+fmt(s.shares*s.price)+'?'))return;
   S.stocks=S.stocks.filter(x=>x.id!==id);
-  if(!S.stocks.some(x=>x.ticker===s.ticker)){delete S.prices[s.ticker];delete S.targets[s.ticker];}
+  if(!S.stocks.some(x=>x.ticker===s.ticker)){delete S.prices[s.ticker];delete S.targets[s.ticker];delete S.alerted[s.ticker];}
   save();renderAll();toast('Purchase deleted');
 }
 
@@ -847,9 +851,11 @@ function saveCryptoPrices(sym){
   else{
     const v=parseFloat(tpv);
     if(!(v>=0)){toast('Enter a valid target price');return;}
+    if(S.cryptoTargets[sym]!==v)delete S.cryptoAlerted[sym];
     S.cryptoTargets[sym]=v;
   }
   save();renderAll();toast(sym+' updated');
+  checkTargetHits();
 }
 function renderCryptoHistory(){
   const el=document.getElementById('crypto-history');
@@ -864,7 +870,7 @@ function delCrypto(id){
   const c=S.crypto.find(x=>x.id===id);
   if(!confirm('Delete '+c.symbol+' buy of '+fmt(c.qty*c.price)+'?'))return;
   S.crypto=S.crypto.filter(x=>x.id!==id);
-  if(!S.crypto.some(x=>x.symbol===c.symbol)){delete S.cryptoPrices[c.symbol];delete S.cryptoTargets[c.symbol];}
+  if(!S.crypto.some(x=>x.symbol===c.symbol)){delete S.cryptoPrices[c.symbol];delete S.cryptoTargets[c.symbol];delete S.cryptoAlerted[c.symbol];}
   save();renderAll();toast('Buy deleted');
 }
 
@@ -902,7 +908,7 @@ async function refreshCryptoPrices(silent){
     for(const p of pairs){
       if(j[p.id]&&j[p.id].usd!=null){S.cryptoPrices[p.sym]=j[p.id].usd;n++;}
     }
-    if(n){S.cryptoPricesUpdated=new Date().toISOString();save();renderAll();}
+    if(n){S.cryptoPricesUpdated=new Date().toISOString();save();renderAll();checkTargetHits();}
     if(!silent)toast(n?('Updated '+n+' coin'+(n===1?'':'s')):'No prices returned');
   }catch(e){
     if(!silent)toast('Price fetch failed — try again in a minute');
@@ -928,7 +934,7 @@ async function refreshStockPrices(silent){
         if(j&&j.c>0){S.prices[t]=j.c;n++;}
       }catch(e){}
     }
-    if(n){S.pricesUpdated=new Date().toISOString();save();renderAll();}
+    if(n){S.pricesUpdated=new Date().toISOString();save();renderAll();checkTargetHits();}
     if(!silent)toast(n?('Updated '+n+' ticker'+(n===1?'':'s')):'No quotes — check your key or tickers');
   }finally{
     btn.disabled=false;btn.textContent='↻ Refresh live prices';
@@ -952,6 +958,63 @@ function autoRefresh(){
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')autoRefresh();});
 autoRefresh();
+setInterval(autoRefresh,60000);
+
+/* =============== target alerts =============== */
+function alertsSupported(){return 'Notification' in window;}
+function renderAlertButtons(){
+  const on=alertsSupported()&&Notification.permission==='granted';
+  for(const id of ['btn-alerts-stocks','btn-alerts-crypto']){
+    const b=document.getElementById(id);
+    if(!alertsSupported()){b.hidden=true;continue;}
+    b.textContent=on?'🔔 Alerts on':'🔔 Enable alerts';
+    b.disabled=on;
+  }
+}
+async function enableAlerts(){
+  if(!alertsSupported()){toast('Notifications not supported here');return;}
+  try{
+    const p=await Notification.requestPermission();
+    if(p==='granted'){toast('Alerts enabled 🎯');checkTargetHits();}
+    else toast('Notifications blocked — allow them in browser settings');
+  }catch(e){toast('Could not enable alerts');}
+  renderAlertButtons();
+}
+document.getElementById('btn-alerts-stocks').addEventListener('click',enableAlerts);
+document.getElementById('btn-alerts-crypto').addEventListener('click',enableAlerts);
+renderAlertButtons();
+function pushNotify(title,body){
+  if(!alertsSupported()||Notification.permission!=='granted')return;
+  const opts={body:body,icon:'icon-192.png',badge:'icon-192.png',tag:'finash-'+title};
+  if('serviceWorker'in navigator){
+    navigator.serviceWorker.ready.then(reg=>{
+      if(reg.showNotification)reg.showNotification(title,opts);
+      else new Notification(title,opts);
+    }).catch(()=>{try{new Notification(title,opts);}catch(e){}});
+  }else{try{new Notification(title,opts);}catch(e){}}
+}
+function checkTargetHits(){
+  let changed=false;const msgs=[];
+  for(const h of cryptoBySymbol()){
+    const tp=S.cryptoTargets[h.symbol],cp=S.cryptoPrices[h.symbol];
+    if(!(tp>0)||cp==null)continue;
+    if(cp>=tp&&!S.cryptoAlerted[h.symbol]){
+      S.cryptoAlerted[h.symbol]=true;changed=true;
+      msgs.push({sym:h.symbol,body:h.symbol+' reached '+fmt(cp)+' — your sell target is '+fmt(tp)});
+    }else if(cp<tp&&S.cryptoAlerted[h.symbol]){delete S.cryptoAlerted[h.symbol];changed=true;}
+  }
+  for(const h of holdingsByTicker()){
+    const tp=S.targets[h.ticker],cp=S.prices[h.ticker];
+    if(!(tp>0)||cp==null)continue;
+    if(cp>=tp&&!S.alerted[h.ticker]){
+      S.alerted[h.ticker]=true;changed=true;
+      msgs.push({sym:h.ticker,body:h.ticker+' reached '+fmt(cp)+' — your sell target is '+fmt(tp)});
+    }else if(cp<tp&&S.alerted[h.ticker]){delete S.alerted[h.ticker];changed=true;}
+  }
+  if(changed)save();
+  for(const m of msgs)pushNotify('🎯 '+m.sym+' hit your sell target',m.body);
+  if(msgs.length)toast(msgs.length===1?('🎯 '+msgs[0].body):('🎯 '+msgs.length+' sell targets hit'));
+}
 
 /* =============== savings =============== */
 document.getElementById('d-date').value=todayISO();
@@ -1126,8 +1189,8 @@ document.getElementById('import-file').addEventListener('change',e=>{
       const p=JSON.parse(r.result);
       if(!p||!Array.isArray(p.stocks)||!Array.isArray(p.deposits))throw 0;
       if(!confirm('Replace current data with this backup?'))return;
-      S={stocks:p.stocks,prices:p.prices||{},targets:p.targets||{},
-         crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},
+      S={stocks:p.stocks,prices:p.prices||{},targets:p.targets||{},alerted:p.alerted||{},
+         crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},cryptoAlerted:p.cryptoAlerted||{},
          pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
          deposits:p.deposits,
          settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})};
@@ -1150,6 +1213,7 @@ function renderAll(){
 }
 hydrateGoalForm();
 renderAll();
+checkTargetHits();
 
 /* =============== PWA =============== */
 if('serviceWorker'in navigator){
