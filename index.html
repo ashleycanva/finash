@@ -27,6 +27,8 @@
   --gold-tint:#fdf6d9;
   --loss:#c0564d;
   --loss-tint:#f7e6e4;
+  --violet:#8E7DBE;
+  --violet-deep:#6b5a9e;
   --line:#e4e2da;
   --radius:14px;
   --mono:'IBM Plex Mono',ui-monospace,monospace;
@@ -134,10 +136,12 @@ h2{
   margin:14px 0 8px;background:var(--line);
 }
 .comp-bar .seg-invest{background:var(--teal)}
+.comp-bar .seg-crypto{background:var(--violet)}
 .comp-bar .seg-save{background:var(--gold)}
 .comp-legend{display:flex;gap:18px;font-size:.8rem;color:var(--ink-soft)}
 .comp-legend .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:1px}
 .comp-legend .dot.t{background:var(--teal)}
+.comp-legend .dot.v{background:var(--violet)}
 .comp-legend .dot.g{background:var(--gold)}
 .comp-legend b{font-family:var(--mono);font-weight:600}
 
@@ -296,10 +300,12 @@ details.settings form{margin-top:12px}
     <div class="big" id="ov-total">$0.00</div>
     <div class="comp-bar" aria-hidden="true">
       <div class="seg-invest" id="ov-seg-invest" style="width:0%"></div>
+      <div class="seg-crypto" id="ov-seg-crypto" style="width:0%"></div>
       <div class="seg-save" id="ov-seg-save" style="width:0%"></div>
     </div>
     <div class="comp-legend">
-      <span><span class="dot t"></span>Invested <b id="ov-invested">$0</b></span>
+      <span><span class="dot t"></span>Stocks <b id="ov-invested">$0</b></span>
+      <span><span class="dot v"></span>Crypto <b id="ov-crypto">$0</b></span>
       <span><span class="dot g"></span>Saved <b id="ov-saved">$0</b></span>
     </div>
   </div>
@@ -359,6 +365,42 @@ details.settings form{margin-top:12px}
   <div class="card">
     <h2>Purchase history</h2>
     <div id="stock-history"></div>
+  </div>
+</section>
+
+<!-- ============ CRYPTO ============ -->
+<section class="view" id="view-crypto">
+  <div class="card">
+    <h2>Log a crypto buy</h2>
+    <form id="form-crypto">
+      <div class="row">
+        <div><label for="c-symbol">Coin</label><input id="c-symbol" placeholder="BTC" required maxlength="10" autocapitalize="characters" autocomplete="off"></div>
+        <div><label for="c-date">Date</label><input id="c-date" type="date" required></div>
+      </div>
+      <div class="row">
+        <div>
+          <div class="field-head">
+            <label for="c-qty" id="c-qty-label">Quantity</label>
+            <button type="button" class="mode-toggle" id="c-mode-btn">Enter $ instead</button>
+          </div>
+          <input id="c-qty" type="number" step="any" min="0.00000001" placeholder="0.05" required inputmode="decimal">
+        </div>
+        <div><label for="c-price">Price per coin ($)</label><input id="c-price" type="number" step="any" min="0" placeholder="67000" required inputmode="decimal"></div>
+      </div>
+      <div class="mode-hint" id="c-mode-hint" hidden></div>
+      <button class="btn btn-primary" type="submit">Add buy</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Holdings</h2>
+    <div id="crypto-alloc"></div>
+    <div id="crypto-holdings"></div>
+  </div>
+
+  <div class="card">
+    <h2>Buy history</h2>
+    <div id="crypto-history"></div>
   </div>
 </section>
 
@@ -424,6 +466,10 @@ details.settings form{margin-top:12px}
     <svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>
     Stocks
   </button>
+  <button data-view="crypto" aria-label="Crypto">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M10 8.2h3a1.9 1.9 0 010 3.8h-3zM10 12h3.5a1.9 1.9 0 010 3.8H10zM10 7v10M12.8 6.3v1.9M12.8 15.8v1.9"/></svg>
+    Crypto
+  </button>
   <button data-view="savings" aria-label="Savings">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9 10.5c0-1 1.2-1.8 3-1.8s3 .8 3 1.8-1.2 1.6-3 1.8-3 .8-3 1.8 1.2 1.8 3 1.8 3-.8 3-1.8"/></svg>
     Savings
@@ -441,11 +487,13 @@ function load(){
   try{
     const raw=localStorage.getItem(KEY);
     if(raw){const p=JSON.parse(raw);return{
-      stocks:p.stocks||[],prices:p.prices||{},deposits:p.deposits||[],
+      stocks:p.stocks||[],prices:p.prices||{},
+      crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},
+      deposits:p.deposits||[],
       settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0},p.settings||{})
     };}
   }catch(e){}
-  return{stocks:[],prices:{},deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0}};
+  return{stocks:[],prices:{},crypto:[],cryptoPrices:{},deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0}};
 }
 function save(){localStorage.setItem(KEY,JSON.stringify(S));}
 const fmt=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -467,6 +515,21 @@ function holdingsByTicker(){
   for(const s of S.stocks){
     if(!m[s.ticker])m[s.ticker]={ticker:s.ticker,shares:0,cost:0};
     m[s.ticker].shares+=s.shares;m[s.ticker].cost+=s.shares*s.price;
+  }
+  return Object.values(m).sort((a,b)=>b.cost-a.cost);
+}
+function totalCryptoInvested(){return S.crypto.reduce((a,c)=>a+c.qty*c.price,0);}
+function cryptoMarketValue(){
+  return S.crypto.reduce((a,c)=>{
+    const cp=S.cryptoPrices[c.symbol];
+    return a+c.qty*(cp!=null?cp:c.price);
+  },0);
+}
+function cryptoBySymbol(){
+  const m={};
+  for(const c of S.crypto){
+    if(!m[c.symbol])m[c.symbol]={symbol:c.symbol,qty:0,cost:0};
+    m[c.symbol].qty+=c.qty;m[c.symbol].cost+=c.qty*c.price;
   }
   return Object.values(m).sort((a,b)=>b.cost-a.cost);
 }
@@ -619,6 +682,136 @@ function delStock(id){
   save();renderAll();toast('Purchase deleted');
 }
 
+/* =============== crypto =============== */
+document.getElementById('c-date').value=todayISO();
+let cryptoMode='qty'; // 'qty' | 'usd'
+const cModeBtn=document.getElementById('c-mode-btn');
+const cQtyInput=document.getElementById('c-qty');
+const cQtyLabel=document.getElementById('c-qty-label');
+const cModeHint=document.getElementById('c-mode-hint');
+cModeBtn.addEventListener('click',()=>{
+  cryptoMode=cryptoMode==='qty'?'usd':'qty';
+  if(cryptoMode==='usd'){
+    cQtyLabel.textContent='Amount invested ($)';
+    cQtyInput.placeholder='500';
+    cQtyInput.min='0.01';
+    cModeBtn.textContent='Enter quantity instead';
+  }else{
+    cQtyLabel.textContent='Quantity';
+    cQtyInput.placeholder='0.05';
+    cQtyInput.min='0.00000001';
+    cModeBtn.textContent='Enter $ instead';
+  }
+  cQtyInput.value='';
+  updateCryptoHint();
+  cQtyInput.focus();
+});
+function updateCryptoHint(){
+  if(cryptoMode!=='usd'){cModeHint.hidden=true;return;}
+  const amt=parseFloat(cQtyInput.value);
+  const pr=parseFloat(document.getElementById('c-price').value);
+  if(amt>0&&pr>0){
+    cModeHint.hidden=false;
+    cModeHint.textContent='≈ '+(amt/pr).toLocaleString('en-US',{maximumFractionDigits:8})+' '+(document.getElementById('c-symbol').value.trim().toUpperCase()||'coins');
+  }else{
+    cModeHint.hidden=true;
+  }
+}
+cQtyInput.addEventListener('input',updateCryptoHint);
+document.getElementById('c-price').addEventListener('input',updateCryptoHint);
+document.getElementById('c-symbol').addEventListener('input',updateCryptoHint);
+document.getElementById('form-crypto').addEventListener('submit',e=>{
+  e.preventDefault();
+  const sym=document.getElementById('c-symbol').value.trim().toUpperCase();
+  const v=parseFloat(cQtyInput.value);
+  const pr=parseFloat(document.getElementById('c-price').value);
+  const dt=document.getElementById('c-date').value;
+  let q;
+  if(cryptoMode==='usd'){
+    if(!(pr>0)){toast('Price per coin is needed to convert $ to quantity');return;}
+    q=v/pr;
+  }else{
+    q=v;
+  }
+  if(!sym||!(q>0)||!(pr>=0)||!dt)return;
+  S.crypto.push({id:uid(),symbol:sym,qty:q,price:pr,date:dt});
+  if(S.cryptoPrices[sym]==null)S.cryptoPrices[sym]=pr;
+  save();renderAll();
+  e.target.reset();document.getElementById('c-date').value=todayISO();
+  updateCryptoHint();
+  toast(cryptoMode==='usd'
+    ?sym+' added · '+q.toLocaleString('en-US',{maximumFractionDigits:8})
+    :sym+' buy added');
+});
+
+function renderCryptoHoldings(){
+  const wrap=document.getElementById('crypto-holdings');
+  const alloc=document.getElementById('crypto-alloc');
+  const hs=cryptoBySymbol();
+  if(!hs.length){
+    alloc.innerHTML='';
+    wrap.innerHTML='<div class="empty"><b>No crypto yet.</b><br>Log your first buy above — by quantity or dollar amount.</div>';
+    return;
+  }
+  const totalCost=hs.reduce((a,h)=>a+h.cost,0);
+  alloc.innerHTML='<div class="alloc-bar">'+hs.map((h,i)=>
+    `<div style="width:${(h.cost/totalCost*100).toFixed(2)}%;background:${PALETTE[i%PALETTE.length]}"></div>`
+  ).join('')+'</div><div class="alloc-legend">'+hs.map((h,i)=>
+    `<span><span class="sw" style="background:${PALETTE[i%PALETTE.length]}"></span>${h.symbol} ${(h.cost/totalCost*100).toFixed(0)}%</span>`
+  ).join('')+'</div><div style="height:14px"></div>';
+
+  wrap.innerHTML=hs.map(h=>{
+    const avg=h.cost/h.qty;
+    const cp=S.cryptoPrices[h.symbol];
+    let glHtml='<span style="color:var(--ink-faint);font-size:.8rem">set current price ↓</span>';
+    let mv=h.cost;
+    if(cp!=null){
+      mv=h.qty*cp;
+      const gl=mv-h.cost;
+      const pct=h.cost?(gl/h.cost*100):0;
+      const cls=gl>=0?'gain':'lossc';
+      const sign=gl>=0?'+':'−';
+      glHtml=`<span class="${cls}">${sign}${fmt(Math.abs(gl))} (${sign}${Math.abs(pct).toFixed(1)}%)</span>`;
+    }
+    return `<div class="holding">
+      <div class="holding-top">
+        <span class="tkr">${h.symbol}</span>
+        <span class="shares">${h.qty.toLocaleString('en-US',{maximumFractionDigits:8})} · avg ${fmt(avg)}</span>
+      </div>
+      <div class="holding-mid">
+        <span>Cost <span class="m">${fmt(h.cost)}</span></span>
+        <span>Value <span class="m">${fmt(mv)}</span></span>
+      </div>
+      <div class="holding-mid" style="justify-content:flex-end">${glHtml}</div>
+      <div class="price-edit">
+        <input type="number" step="any" min="0" inputmode="decimal" placeholder="current $" value="${cp!=null?cp:''}" id="ccp-${h.symbol}" aria-label="Current price for ${h.symbol}">
+        <button class="btn btn-ghost" onclick="setCryptoPrice('${h.symbol}')">Update price</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function setCryptoPrice(sym){
+  const v=parseFloat(document.getElementById('ccp-'+sym).value);
+  if(!(v>=0)){toast('Enter a valid price');return;}
+  S.cryptoPrices[sym]=v;save();renderAll();toast(sym+' price updated');
+}
+function renderCryptoHistory(){
+  const el=document.getElementById('crypto-history');
+  if(!S.crypto.length){el.innerHTML='<div class="empty">Buys you log will appear here.</div>';return;}
+  el.innerHTML=[...S.crypto].sort((a,b)=>b.date.localeCompare(a.date)).map(c=>
+    `<div class="tx">
+      <span class="l">${c.date} · <b>${c.symbol}</b> · ${c.qty.toLocaleString('en-US',{maximumFractionDigits:8})} @ ${fmt(c.price)}</span>
+      <span><span class="amt">${fmt(c.qty*c.price)}</span><button class="del" onclick="delCrypto('${c.id}')" aria-label="Delete buy">✕</button></span>
+    </div>`).join('');
+}
+function delCrypto(id){
+  const c=S.crypto.find(x=>x.id===id);
+  if(!confirm('Delete '+c.symbol+' buy of '+fmt(c.qty*c.price)+'?'))return;
+  S.crypto=S.crypto.filter(x=>x.id!==id);
+  if(!S.crypto.some(x=>x.symbol===c.symbol))delete S.cryptoPrices[c.symbol];
+  save();renderAll();toast('Buy deleted');
+}
+
 /* =============== savings =============== */
 document.getElementById('d-date').value=todayISO();
 document.getElementById('form-deposit').addEventListener('submit',e=>{
@@ -700,13 +893,17 @@ function delDeposit(id){
 
 /* =============== overview =============== */
 function renderOverview(){
-  const inv=totalInvested(),sav=totalSaved(),mv=marketValue();
+  const inv=totalInvested()+totalCryptoInvested(),sav=totalSaved();
+  const stockMv=marketValue(),cryMv=cryptoMarketValue();
+  const mv=stockMv+cryMv;
   const total=mv+sav;
   document.getElementById('ov-total').textContent=fmt(total);
-  document.getElementById('ov-invested').textContent=fmt0(mv);
+  document.getElementById('ov-invested').textContent=fmt0(stockMv);
+  document.getElementById('ov-crypto').textContent=fmt0(cryMv);
   document.getElementById('ov-saved').textContent=fmt0(sav);
   const sum=mv+sav||1;
-  document.getElementById('ov-seg-invest').style.width=(mv/sum*100)+'%';
+  document.getElementById('ov-seg-invest').style.width=(stockMv/sum*100)+'%';
+  document.getElementById('ov-seg-crypto').style.width=(cryMv/sum*100)+'%';
   document.getElementById('ov-seg-save').style.width=(sav/sum*100)+'%';
 
   const gl=mv-inv;
@@ -731,6 +928,7 @@ function renderOverview(){
 function renderChart(){
   const events=[
     ...S.stocks.map(s=>({date:s.date,amt:s.shares*s.price})),
+    ...S.crypto.map(c=>({date:c.date,amt:c.qty*c.price})),
     ...S.deposits.map(d=>({date:d.date,amt:d.amount}))
   ].sort((a,b)=>a.date.localeCompare(b.date));
   const el=document.getElementById('ov-chart');
@@ -769,6 +967,7 @@ function download(name,content,type){
 document.getElementById('btn-export-csv').addEventListener('click',()=>{
   let csv='type,date,ticker,shares,price_per_share,amount\n';
   for(const s of S.stocks)csv+=`stock,${s.date},${s.ticker},${s.shares},${s.price},${(s.shares*s.price).toFixed(2)}\n`;
+  for(const c of S.crypto)csv+=`crypto,${c.date},${c.symbol},${c.qty},${c.price},${(c.qty*c.price).toFixed(2)}\n`;
   for(const d of S.deposits)csv+=`deposit,${d.date},,,,${d.amount.toFixed(2)}\n`;
   download('finash-'+todayISO()+'.csv',csv,'text/csv');
   toast('CSV exported');
@@ -786,7 +985,9 @@ document.getElementById('import-file').addEventListener('change',e=>{
       const p=JSON.parse(r.result);
       if(!p||!Array.isArray(p.stocks)||!Array.isArray(p.deposits))throw 0;
       if(!confirm('Replace current data with this backup?'))return;
-      S={stocks:p.stocks,prices:p.prices||{},deposits:p.deposits,
+      S={stocks:p.stocks,prices:p.prices||{},
+         crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},
+         deposits:p.deposits,
          settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0},p.settings||{})};
       save();hydrateGoalForm();renderAll();toast('Backup restored');
     }catch(_){toast('That file is not a valid backup');}
@@ -798,6 +999,7 @@ document.getElementById('import-file').addEventListener('change',e=>{
 /* =============== render =============== */
 function renderAll(){
   renderHoldings();renderStockHistory();
+  renderCryptoHoldings();renderCryptoHistory();
   renderGoal();renderStreak();renderDepositHistory();
   renderOverview();
 }
