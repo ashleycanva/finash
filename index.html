@@ -877,10 +877,11 @@ function renderPriceNotes(){
   document.getElementById('stock-price-note').textContent=S.pricesUpdated?fmtUpdated(S.pricesUpdated):'';
   document.getElementById('crypto-price-note').textContent=S.cryptoPricesUpdated?fmtUpdated(S.cryptoPricesUpdated):'';
 }
-async function refreshCryptoPrices(){
+async function refreshCryptoPrices(silent){
+  silent=silent===true;
   const btn=document.getElementById('btn-refresh-crypto');
   const syms=[...new Set(S.crypto.map(c=>c.symbol))];
-  if(!syms.length){toast('Log a crypto buy first');return;}
+  if(!syms.length){if(!silent)toast('Log a crypto buy first');return;}
   btn.disabled=true;btn.textContent='Fetching…';
   try{
     const pairs=[];const unknown=[];
@@ -893,7 +894,7 @@ async function refreshCryptoPrices(){
         if(hit)pairs.push({sym:s,id:hit.id});
       }catch(e){}
     }
-    if(!pairs.length){toast('Could not match any coins');return;}
+    if(!pairs.length){if(!silent)toast('Could not match any coins');return;}
     const r=await fetch('https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids='+pairs.map(p=>p.id).join(','));
     if(!r.ok)throw new Error('http '+r.status);
     const j=await r.json();
@@ -902,19 +903,20 @@ async function refreshCryptoPrices(){
       if(j[p.id]&&j[p.id].usd!=null){S.cryptoPrices[p.sym]=j[p.id].usd;n++;}
     }
     if(n){S.cryptoPricesUpdated=new Date().toISOString();save();renderAll();}
-    toast(n?('Updated '+n+' coin'+(n===1?'':'s')):'No prices returned');
+    if(!silent)toast(n?('Updated '+n+' coin'+(n===1?'':'s')):'No prices returned');
   }catch(e){
-    toast('Price fetch failed — try again in a minute');
+    if(!silent)toast('Price fetch failed — try again in a minute');
   }finally{
     btn.disabled=false;btn.textContent='↻ Refresh live prices';
   }
 }
-async function refreshStockPrices(){
+async function refreshStockPrices(silent){
+  silent=silent===true;
   const btn=document.getElementById('btn-refresh-stocks');
   const key=(S.settings.finnhubKey||'').trim();
-  if(!key){toast('Add your free Finnhub key in Live price setup ↓');return;}
+  if(!key){if(!silent)toast('Add your free Finnhub key in Live price setup ↓');return;}
   const ts=[...new Set(S.stocks.map(s=>s.ticker))];
-  if(!ts.length){toast('Log a stock purchase first');return;}
+  if(!ts.length){if(!silent)toast('Log a stock purchase first');return;}
   btn.disabled=true;btn.textContent='Fetching…';
   try{
     let n=0;
@@ -927,7 +929,7 @@ async function refreshStockPrices(){
       }catch(e){}
     }
     if(n){S.pricesUpdated=new Date().toISOString();save();renderAll();}
-    toast(n?('Updated '+n+' ticker'+(n===1?'':'s')):'No quotes — check your key or tickers');
+    if(!silent)toast(n?('Updated '+n+' ticker'+(n===1?'':'s')):'No quotes — check your key or tickers');
   }finally{
     btn.disabled=false;btn.textContent='↻ Refresh live prices';
   }
@@ -941,6 +943,15 @@ document.getElementById('form-finnhub').addEventListener('submit',e=>{
   save();
   toast(S.settings.finnhubKey?'Key saved':'Key cleared');
 });
+const AUTO_REFRESH_MS=5*60*1000;
+function priceStale(iso){return !iso||Date.now()-new Date(iso).getTime()>AUTO_REFRESH_MS;}
+function autoRefresh(){
+  if(!navigator.onLine)return;
+  if(S.crypto.length&&priceStale(S.cryptoPricesUpdated))refreshCryptoPrices(true);
+  if(S.stocks.length&&(S.settings.finnhubKey||'').trim()&&priceStale(S.pricesUpdated))refreshStockPrices(true);
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')autoRefresh();});
+autoRefresh();
 
 /* =============== savings =============== */
 document.getElementById('d-date').value=todayISO();
