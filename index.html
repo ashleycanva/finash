@@ -210,6 +210,16 @@ input:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:var(-
 .price-edit button{padding:7px 12px;font-size:.78rem}
 .target-line{font-size:.78rem;font-family:var(--mono);color:var(--ink-faint);margin-top:8px}
 .target-line.hit{color:var(--teal-deep);font-weight:600}
+.hold-actions{display:flex;gap:8px;margin-top:10px}
+.hold-actions .btn{padding:7px 12px;font-size:.78rem}
+.sell-row{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.sell-row input{max-width:108px;padding:7px 10px;font-size:14px;font-family:var(--mono)}
+.sell-row input[type=date]{max-width:150px;font-family:var(--body)}
+.sell-row button{padding:7px 12px;font-size:.78rem}
+.chart-embed{margin-top:10px}
+.chart-embed iframe{width:100%;height:320px;border:0;border-radius:10px;background:#fff}
+.realized-line{font-size:.8rem;font-family:var(--mono);margin-top:4px;color:var(--ink-soft)}
+.amt.sale{color:var(--teal-deep)}
 .refresh-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
 .refresh-row .btn{font-size:.78rem;padding:8px 12px}
 .price-note{font-size:.72rem;color:var(--ink-faint);font-family:var(--mono)}
@@ -514,12 +524,13 @@ function load(){
     if(raw){const p=JSON.parse(raw);return{
       stocks:p.stocks||[],prices:p.prices||{},targets:p.targets||{},alerted:p.alerted||{},
       crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},cryptoAlerted:p.cryptoAlerted||{},
+      sales:p.sales||[],
       pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
       deposits:p.deposits||[],
       settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})
     };}
   }catch(e){}
-  return{stocks:[],prices:{},targets:{},alerted:{},crypto:[],cryptoPrices:{},cryptoTargets:{},cryptoAlerted:{},pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''}};
+  return{stocks:[],prices:{},targets:{},alerted:{},crypto:[],cryptoPrices:{},cryptoTargets:{},cryptoAlerted:{},sales:[],pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''}};
 }
 function save(){localStorage.setItem(KEY,JSON.stringify(S));}
 const fmt=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -528,37 +539,49 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const todayISO=()=>new Date().toISOString().slice(0,10);
 
 /* =============== derived =============== */
-function totalInvested(){return S.stocks.reduce((a,s)=>a+s.shares*s.price,0);}
 function totalSaved(){return (S.settings.startBalance||0)+S.deposits.reduce((a,d)=>a+d.amount,0);}
+/* Positions net of sales, average-cost basis.
+   kind: 'stock' | 'crypto' */
+function aggPositions(kind){
+  const buys=kind==='stock'?S.stocks:S.crypto;
+  const m={};
+  for(const b of buys){
+    const k=kind==='stock'?b.ticker:b.symbol;
+    const q=kind==='stock'?b.shares:b.qty;
+    if(!m[k])m[k]={sym:k,bought:0,cost:0,sold:0,proceeds:0};
+    m[k].bought+=q;m[k].cost+=q*b.price;
+  }
+  for(const s of S.sales){
+    if(s.kind!==kind)continue;
+    const p=m[s.symbol];if(!p)continue;
+    p.sold+=s.qty;p.proceeds+=s.qty*s.price;
+  }
+  for(const k in m){
+    const p=m[k];
+    p.avg=p.bought?p.cost/p.bought:0;
+    p.qty=Math.max(0,p.bought-p.sold);
+    p.remCost=p.avg*p.qty;
+    p.realized=p.proceeds-p.avg*Math.min(p.sold,p.bought);
+  }
+  return Object.values(m).sort((a,b)=>b.remCost-a.remCost);
+}
+function stockPositions(){return aggPositions('stock').filter(p=>p.qty>1e-9);}
+function cryptoPositions(){return aggPositions('crypto').filter(p=>p.qty>1e-9);}
+function stockRemCost(){return stockPositions().reduce((a,p)=>a+p.remCost,0);}
+function cryptoRemCost(){return cryptoPositions().reduce((a,p)=>a+p.remCost,0);}
 function marketValue(){
-  return S.stocks.reduce((a,s)=>{
-    const cp=S.prices[s.ticker];
-    return a+s.shares*(cp!=null?cp:s.price);
+  return stockPositions().reduce((a,p)=>{
+    const cp=S.prices[p.sym];
+    return a+p.qty*(cp!=null?cp:p.avg);
   },0);
 }
-function holdingsByTicker(){
-  const m={};
-  for(const s of S.stocks){
-    if(!m[s.ticker])m[s.ticker]={ticker:s.ticker,shares:0,cost:0};
-    m[s.ticker].shares+=s.shares;m[s.ticker].cost+=s.shares*s.price;
-  }
-  return Object.values(m).sort((a,b)=>b.cost-a.cost);
-}
-function totalCryptoInvested(){return S.crypto.reduce((a,c)=>a+c.qty*c.price,0);}
 function cryptoMarketValue(){
-  return S.crypto.reduce((a,c)=>{
-    const cp=S.cryptoPrices[c.symbol];
-    return a+c.qty*(cp!=null?cp:c.price);
+  return cryptoPositions().reduce((a,p)=>{
+    const cp=S.cryptoPrices[p.sym];
+    return a+p.qty*(cp!=null?cp:p.avg);
   },0);
 }
-function cryptoBySymbol(){
-  const m={};
-  for(const c of S.crypto){
-    if(!m[c.symbol])m[c.symbol]={symbol:c.symbol,qty:0,cost:0};
-    m[c.symbol].qty+=c.qty;m[c.symbol].cost+=c.qty*c.price;
-  }
-  return Object.values(m).sort((a,b)=>b.cost-a.cost);
-}
+function realizedTotal(kind){return aggPositions(kind).reduce((a,p)=>a+p.realized,0);}
 
 /* =============== toast =============== */
 let toastT;
@@ -640,53 +663,73 @@ document.getElementById('form-stock').addEventListener('submit',e=>{
     :t+' purchase added');
 });
 
+function holdingCard(kind,p){
+  const prices=kind==='stock'?S.prices:S.cryptoPrices;
+  const targets=kind==='stock'?S.targets:S.cryptoTargets;
+  const cp=prices[p.sym];
+  const qtyStr=p.qty.toLocaleString('en-US',{maximumFractionDigits:8});
+  const unitLbl=kind==='stock'?' sh':'';
+  let glHtml='<span style="color:var(--ink-faint);font-size:.8rem">set current price ↓</span>';
+  let mv=p.remCost;
+  if(cp!=null){
+    mv=p.qty*cp;
+    const gl=mv-p.remCost;
+    const pct=p.remCost?(gl/p.remCost*100):0;
+    const cls=gl>=0?'gain':'lossc';
+    const sign=gl>=0?'+':'−';
+    glHtml=`<span class="${cls}">${sign}${fmt(Math.abs(gl))} (${sign}${Math.abs(pct).toFixed(1)}%)</span>`;
+  }
+  const saveFn=kind==='stock'?'savePrices':'saveCryptoPrices';
+  const cpId=(kind==='stock'?'cp-':'ccp-')+p.sym;
+  const tpId=(kind==='stock'?'tp-':'ctp-')+p.sym;
+  return `<div class="holding">
+    <div class="holding-top">
+      <span class="tkr">${p.sym}</span>
+      <span class="shares">${qtyStr}${unitLbl} · avg ${fmt(p.avg)}</span>
+    </div>
+    <div class="holding-mid">
+      <span>Cost <span class="m">${fmt(p.remCost)}</span></span>
+      <span>Value <span class="m">${fmt(mv)}</span></span>
+    </div>
+    <div class="holding-mid" style="justify-content:flex-end">${glHtml}</div>
+    ${p.realized?`<div class="realized-line">Realized so far: <span class="${p.realized>=0?'gain':'lossc'}">${p.realized>=0?'+':'−'}${fmt(Math.abs(p.realized))}</span></div>`:''}
+    ${targetLine(targets[p.sym],cp)}
+    <div class="price-edit">
+      <input type="number" step="any" min="0" inputmode="decimal" placeholder="current $" value="${cp!=null?cp:''}" id="${cpId}" aria-label="Current price for ${p.sym}">
+      <input type="number" step="any" min="0" inputmode="decimal" placeholder="sell target $" value="${targets[p.sym]!=null?targets[p.sym]:''}" id="${tpId}" aria-label="Sell target for ${p.sym}">
+      <button class="btn btn-ghost" onclick="${saveFn}('${p.sym}')">Save</button>
+    </div>
+    <div class="hold-actions">
+      <button class="btn btn-ghost" onclick="toggleChart('${kind}','${p.sym}')">📈 Chart</button>
+      <button class="btn btn-ghost" onclick="toggleSellForm('${kind}','${p.sym}')">Sell…</button>
+    </div>
+    <div class="sell-row" id="sf-${kind}-${p.sym}" hidden>
+      <input type="number" step="any" min="0" inputmode="decimal" placeholder="qty (max ${qtyStr})" id="sq-${kind}-${p.sym}" aria-label="Quantity sold of ${p.sym}">
+      <input type="number" step="any" min="0" inputmode="decimal" placeholder="sold @ $" id="sp-${kind}-${p.sym}" aria-label="Sale price for ${p.sym}">
+      <input type="date" id="sd-${kind}-${p.sym}" aria-label="Sale date for ${p.sym}">
+      <button class="btn btn-ghost" onclick="recordSale('${kind}','${p.sym}')">Record sale</button>
+    </div>
+    <div class="chart-embed" id="ch-${kind}-${p.sym}" hidden></div>
+  </div>`;
+}
 function renderHoldings(){
   const wrap=document.getElementById('holdings');
   const alloc=document.getElementById('alloc');
-  const hs=holdingsByTicker();
+  const hs=stockPositions();
+  const realized=realizedTotal('stock');
+  const realizedHtml=realized?`<div class="realized-line" style="margin-top:10px">Total realized gain: <span class="${realized>=0?'gain':'lossc'}">${realized>=0?'+':'−'}${fmt(Math.abs(realized))}</span></div>`:'';
   if(!hs.length){
     alloc.innerHTML='';
-    wrap.innerHTML='<div class="empty"><b>No holdings yet.</b><br>Log your first stock purchase above — it takes ten seconds.</div>';
+    wrap.innerHTML='<div class="empty"><b>No holdings yet.</b><br>Log your first stock purchase above — it takes ten seconds.</div>'+realizedHtml;
     return;
   }
-  const totalCost=hs.reduce((a,h)=>a+h.cost,0);
+  const totalCost=hs.reduce((a,h)=>a+h.remCost,0);
   alloc.innerHTML='<div class="alloc-bar">'+hs.map((h,i)=>
-    `<div style="width:${(h.cost/totalCost*100).toFixed(2)}%;background:${PALETTE[i%PALETTE.length]}"></div>`
+    `<div style="width:${(h.remCost/totalCost*100).toFixed(2)}%;background:${PALETTE[i%PALETTE.length]}"></div>`
   ).join('')+'</div><div class="alloc-legend">'+hs.map((h,i)=>
-    `<span><span class="sw" style="background:${PALETTE[i%PALETTE.length]}"></span>${h.ticker} ${(h.cost/totalCost*100).toFixed(0)}%</span>`
+    `<span><span class="sw" style="background:${PALETTE[i%PALETTE.length]}"></span>${h.sym} ${(h.remCost/totalCost*100).toFixed(0)}%</span>`
   ).join('')+'</div><div style="height:14px"></div>';
-
-  wrap.innerHTML=hs.map(h=>{
-    const avg=h.cost/h.shares;
-    const cp=S.prices[h.ticker];
-    let glHtml='<span style="color:var(--ink-faint);font-size:.8rem">set current price ↓</span>';
-    let mv=h.cost;
-    if(cp!=null){
-      mv=h.shares*cp;
-      const gl=mv-h.cost;
-      const pct=h.cost?(gl/h.cost*100):0;
-      const cls=gl>=0?'gain':'lossc';
-      const sign=gl>=0?'+':'−';
-      glHtml=`<span class="${cls}">${sign}${fmt(Math.abs(gl))} (${sign}${Math.abs(pct).toFixed(1)}%)</span>`;
-    }
-    return `<div class="holding">
-      <div class="holding-top">
-        <span class="tkr">${h.ticker}</span>
-        <span class="shares">${h.shares.toLocaleString('en-US',{maximumFractionDigits:6})} sh · avg ${fmt(avg)}</span>
-      </div>
-      <div class="holding-mid">
-        <span>Cost <span class="m">${fmt(h.cost)}</span></span>
-        <span>Value <span class="m">${fmt(mv)}</span></span>
-      </div>
-      <div class="holding-mid" style="justify-content:flex-end">${glHtml}</div>
-      ${targetLine(S.targets[h.ticker],cp)}
-      <div class="price-edit">
-        <input type="number" step="any" min="0" inputmode="decimal" placeholder="current $" value="${cp!=null?cp:''}" id="cp-${h.ticker}" aria-label="Current price for ${h.ticker}">
-        <input type="number" step="any" min="0" inputmode="decimal" placeholder="sell target $" value="${S.targets[h.ticker]!=null?S.targets[h.ticker]:''}" id="tp-${h.ticker}" aria-label="Sell target for ${h.ticker}">
-        <button class="btn btn-ghost" onclick="savePrices('${h.ticker}')">Save</button>
-      </div>
-    </div>`;
-  }).join('');
+  wrap.innerHTML=hs.map(h=>holdingCard('stock',h)).join('')+realizedHtml;
 }
 function targetLine(tp,cp){
   if(!(tp>0))return'';
@@ -712,14 +755,23 @@ function savePrices(t){
   save();renderAll();toast(t+' updated');
   checkTargetHits();
 }
+function saleRow(s,unitLbl){
+  return `<div class="tx">
+      <span class="l">${s.date} · <b>${s.symbol}</b> · <span class="gain">SOLD</span> ${s.qty.toLocaleString('en-US',{maximumFractionDigits:8})}${unitLbl} @ ${fmt(s.price)}</span>
+      <span><span class="amt sale">+${fmt(s.qty*s.price)}</span><button class="del" onclick="delSale('${s.id}')" aria-label="Delete sale">✕</button></span>
+    </div>`;
+}
 function renderStockHistory(){
   const el=document.getElementById('stock-history');
-  if(!S.stocks.length){el.innerHTML='<div class="empty">Purchases you log will appear here.</div>';return;}
-  el.innerHTML=[...S.stocks].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>
-    `<div class="tx">
+  const rows=[
+    ...S.stocks.map(s=>({date:s.date,html:`<div class="tx">
       <span class="l">${s.date} · <b>${s.ticker}</b> · ${s.shares.toLocaleString('en-US',{maximumFractionDigits:6})} sh @ ${fmt(s.price)}</span>
       <span><span class="amt">${fmt(s.shares*s.price)}</span><button class="del" onclick="delStock('${s.id}')" aria-label="Delete purchase">✕</button></span>
-    </div>`).join('');
+    </div>`})),
+    ...S.sales.filter(x=>x.kind==='stock').map(s=>({date:s.date,html:saleRow(s,' sh')}))
+  ];
+  if(!rows.length){el.innerHTML='<div class="empty">Purchases you log will appear here.</div>';return;}
+  el.innerHTML=rows.sort((a,b)=>b.date.localeCompare(a.date)).map(r=>r.html).join('');
 }
 function delStock(id){
   const s=S.stocks.find(x=>x.id===id);
@@ -794,50 +846,21 @@ document.getElementById('form-crypto').addEventListener('submit',e=>{
 function renderCryptoHoldings(){
   const wrap=document.getElementById('crypto-holdings');
   const alloc=document.getElementById('crypto-alloc');
-  const hs=cryptoBySymbol();
+  const hs=cryptoPositions();
+  const realized=realizedTotal('crypto');
+  const realizedHtml=realized?`<div class="realized-line" style="margin-top:10px">Total realized gain: <span class="${realized>=0?'gain':'lossc'}">${realized>=0?'+':'−'}${fmt(Math.abs(realized))}</span></div>`:'';
   if(!hs.length){
     alloc.innerHTML='';
-    wrap.innerHTML='<div class="empty"><b>No crypto yet.</b><br>Log your first buy above — by quantity or dollar amount.</div>';
+    wrap.innerHTML='<div class="empty"><b>No crypto yet.</b><br>Log your first buy above — by quantity or dollar amount.</div>'+realizedHtml;
     return;
   }
-  const totalCost=hs.reduce((a,h)=>a+h.cost,0);
+  const totalCost=hs.reduce((a,h)=>a+h.remCost,0);
   alloc.innerHTML='<div class="alloc-bar">'+hs.map((h,i)=>
-    `<div style="width:${(h.cost/totalCost*100).toFixed(2)}%;background:${PALETTE[i%PALETTE.length]}"></div>`
+    `<div style="width:${(h.remCost/totalCost*100).toFixed(2)}%;background:${PALETTE[i%PALETTE.length]}"></div>`
   ).join('')+'</div><div class="alloc-legend">'+hs.map((h,i)=>
-    `<span><span class="sw" style="background:${PALETTE[i%PALETTE.length]}"></span>${h.symbol} ${(h.cost/totalCost*100).toFixed(0)}%</span>`
+    `<span><span class="sw" style="background:${PALETTE[i%PALETTE.length]}"></span>${h.sym} ${(h.remCost/totalCost*100).toFixed(0)}%</span>`
   ).join('')+'</div><div style="height:14px"></div>';
-
-  wrap.innerHTML=hs.map(h=>{
-    const avg=h.cost/h.qty;
-    const cp=S.cryptoPrices[h.symbol];
-    let glHtml='<span style="color:var(--ink-faint);font-size:.8rem">set current price ↓</span>';
-    let mv=h.cost;
-    if(cp!=null){
-      mv=h.qty*cp;
-      const gl=mv-h.cost;
-      const pct=h.cost?(gl/h.cost*100):0;
-      const cls=gl>=0?'gain':'lossc';
-      const sign=gl>=0?'+':'−';
-      glHtml=`<span class="${cls}">${sign}${fmt(Math.abs(gl))} (${sign}${Math.abs(pct).toFixed(1)}%)</span>`;
-    }
-    return `<div class="holding">
-      <div class="holding-top">
-        <span class="tkr">${h.symbol}</span>
-        <span class="shares">${h.qty.toLocaleString('en-US',{maximumFractionDigits:8})} · avg ${fmt(avg)}</span>
-      </div>
-      <div class="holding-mid">
-        <span>Cost <span class="m">${fmt(h.cost)}</span></span>
-        <span>Value <span class="m">${fmt(mv)}</span></span>
-      </div>
-      <div class="holding-mid" style="justify-content:flex-end">${glHtml}</div>
-      ${targetLine(S.cryptoTargets[h.symbol],cp)}
-      <div class="price-edit">
-        <input type="number" step="any" min="0" inputmode="decimal" placeholder="current $" value="${cp!=null?cp:''}" id="ccp-${h.symbol}" aria-label="Current price for ${h.symbol}">
-        <input type="number" step="any" min="0" inputmode="decimal" placeholder="sell target $" value="${S.cryptoTargets[h.symbol]!=null?S.cryptoTargets[h.symbol]:''}" id="ctp-${h.symbol}" aria-label="Sell target for ${h.symbol}">
-        <button class="btn btn-ghost" onclick="saveCryptoPrices('${h.symbol}')">Save</button>
-      </div>
-    </div>`;
-  }).join('');
+  wrap.innerHTML=hs.map(h=>holdingCard('crypto',h)).join('')+realizedHtml;
 }
 function saveCryptoPrices(sym){
   const cpv=document.getElementById('ccp-'+sym).value.trim();
@@ -857,14 +880,53 @@ function saveCryptoPrices(sym){
   save();renderAll();toast(sym+' updated');
   checkTargetHits();
 }
+
+/* =============== sell & chart =============== */
+function toggleSellForm(kind,sym){
+  const el=document.getElementById('sf-'+kind+'-'+sym);
+  el.hidden=!el.hidden;
+  if(!el.hidden){
+    document.getElementById('sd-'+kind+'-'+sym).value=todayISO();
+    document.getElementById('sq-'+kind+'-'+sym).focus();
+  }
+}
+function recordSale(kind,sym){
+  const q=parseFloat(document.getElementById('sq-'+kind+'-'+sym).value);
+  const pr=parseFloat(document.getElementById('sp-'+kind+'-'+sym).value);
+  const dt=document.getElementById('sd-'+kind+'-'+sym).value||todayISO();
+  const pos=aggPositions(kind).find(p=>p.sym===sym);
+  const held=pos?pos.qty:0;
+  if(!(q>0)){toast('Enter a quantity to sell');return;}
+  if(q>held+1e-9){toast('You only hold '+held.toLocaleString('en-US',{maximumFractionDigits:8})+' '+sym);return;}
+  if(!(pr>=0)){toast('Enter the sale price');return;}
+  S.sales.push({id:uid(),kind:kind,symbol:sym,qty:q,price:pr,date:dt});
+  save();renderAll();
+  toast(sym+' sale recorded · '+fmt(q*pr));
+}
+function delSale(id){
+  const s=S.sales.find(x=>x.id===id);
+  if(!confirm('Delete '+s.symbol+' sale of '+fmt(s.qty*s.price)+'?'))return;
+  S.sales=S.sales.filter(x=>x.id!==id);
+  save();renderAll();toast('Sale deleted');
+}
+function toggleChart(kind,sym){
+  const el=document.getElementById('ch-'+kind+'-'+sym);
+  if(!el.hidden){el.hidden=true;el.innerHTML='';return;}
+  const tvSym=kind==='crypto'?('BINANCE:'+sym+'USDT'):sym;
+  el.innerHTML=`<iframe src="https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSym)}&interval=D&theme=light&style=1&hidesidetoolbar=1&symboledit=0&saveimage=0&hidevolume=1&locale=en" loading="lazy" title="${sym} live chart"></iframe>`;
+  el.hidden=false;
+}
 function renderCryptoHistory(){
   const el=document.getElementById('crypto-history');
-  if(!S.crypto.length){el.innerHTML='<div class="empty">Buys you log will appear here.</div>';return;}
-  el.innerHTML=[...S.crypto].sort((a,b)=>b.date.localeCompare(a.date)).map(c=>
-    `<div class="tx">
+  const rows=[
+    ...S.crypto.map(c=>({date:c.date,html:`<div class="tx">
       <span class="l">${c.date} · <b>${c.symbol}</b> · ${c.qty.toLocaleString('en-US',{maximumFractionDigits:8})} @ ${fmt(c.price)}</span>
       <span><span class="amt">${fmt(c.qty*c.price)}</span><button class="del" onclick="delCrypto('${c.id}')" aria-label="Delete buy">✕</button></span>
-    </div>`).join('');
+    </div>`})),
+    ...S.sales.filter(x=>x.kind==='crypto').map(s=>({date:s.date,html:saleRow(s,'')}))
+  ];
+  if(!rows.length){el.innerHTML='<div class="empty">Buys you log will appear here.</div>';return;}
+  el.innerHTML=rows.sort((a,b)=>b.date.localeCompare(a.date)).map(r=>r.html).join('');
 }
 function delCrypto(id){
   const c=S.crypto.find(x=>x.id===id);
@@ -995,21 +1057,21 @@ function pushNotify(title,body){
 }
 function checkTargetHits(){
   let changed=false;const msgs=[];
-  for(const h of cryptoBySymbol()){
-    const tp=S.cryptoTargets[h.symbol],cp=S.cryptoPrices[h.symbol];
+  for(const h of cryptoPositions()){
+    const tp=S.cryptoTargets[h.sym],cp=S.cryptoPrices[h.sym];
     if(!(tp>0)||cp==null)continue;
-    if(cp>=tp&&!S.cryptoAlerted[h.symbol]){
-      S.cryptoAlerted[h.symbol]=true;changed=true;
-      msgs.push({sym:h.symbol,body:h.symbol+' reached '+fmt(cp)+' — your sell target is '+fmt(tp)});
-    }else if(cp<tp&&S.cryptoAlerted[h.symbol]){delete S.cryptoAlerted[h.symbol];changed=true;}
+    if(cp>=tp&&!S.cryptoAlerted[h.sym]){
+      S.cryptoAlerted[h.sym]=true;changed=true;
+      msgs.push({sym:h.sym,body:h.sym+' reached '+fmt(cp)+' — your sell target is '+fmt(tp)});
+    }else if(cp<tp&&S.cryptoAlerted[h.sym]){delete S.cryptoAlerted[h.sym];changed=true;}
   }
-  for(const h of holdingsByTicker()){
-    const tp=S.targets[h.ticker],cp=S.prices[h.ticker];
+  for(const h of stockPositions()){
+    const tp=S.targets[h.sym],cp=S.prices[h.sym];
     if(!(tp>0)||cp==null)continue;
-    if(cp>=tp&&!S.alerted[h.ticker]){
-      S.alerted[h.ticker]=true;changed=true;
-      msgs.push({sym:h.ticker,body:h.ticker+' reached '+fmt(cp)+' — your sell target is '+fmt(tp)});
-    }else if(cp<tp&&S.alerted[h.ticker]){delete S.alerted[h.ticker];changed=true;}
+    if(cp>=tp&&!S.alerted[h.sym]){
+      S.alerted[h.sym]=true;changed=true;
+      msgs.push({sym:h.sym,body:h.sym+' reached '+fmt(cp)+' — your sell target is '+fmt(tp)});
+    }else if(cp<tp&&S.alerted[h.sym]){delete S.alerted[h.sym];changed=true;}
   }
   if(changed)save();
   for(const m of msgs)pushNotify('🎯 '+m.sym+' hit your sell target',m.body);
@@ -1097,7 +1159,7 @@ function delDeposit(id){
 
 /* =============== overview =============== */
 function renderOverview(){
-  const inv=totalInvested()+totalCryptoInvested(),sav=totalSaved();
+  const inv=stockRemCost()+cryptoRemCost(),sav=totalSaved();
   const stockMv=marketValue(),cryMv=cryptoMarketValue();
   const mv=stockMv+cryMv;
   const total=mv+sav;
@@ -1110,9 +1172,10 @@ function renderOverview(){
   document.getElementById('ov-seg-crypto').style.width=(cryMv/sum*100)+'%';
   document.getElementById('ov-seg-save').style.width=(sav/sum*100)+'%';
 
-  const gl=mv-inv;
+  const realized=realizedTotal('stock')+realizedTotal('crypto');
+  const gl=(mv-inv)+realized;
   const glEl=document.getElementById('ov-gain');
-  if(inv>0){
+  if(inv>0||realized!==0){
     const sign=gl>=0?'+':'−';
     glEl.textContent=sign+'$'+Math.abs(gl).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
     glEl.style.color=gl>=0?'var(--teal-deep)':'var(--loss)';
@@ -1172,6 +1235,7 @@ document.getElementById('btn-export-csv').addEventListener('click',()=>{
   let csv='type,date,ticker,shares,price_per_share,amount\n';
   for(const s of S.stocks)csv+=`stock,${s.date},${s.ticker},${s.shares},${s.price},${(s.shares*s.price).toFixed(2)}\n`;
   for(const c of S.crypto)csv+=`crypto,${c.date},${c.symbol},${c.qty},${c.price},${(c.qty*c.price).toFixed(2)}\n`;
+  for(const s of S.sales)csv+=`sell-${s.kind},${s.date},${s.symbol},${s.qty},${s.price},${(s.qty*s.price).toFixed(2)}\n`;
   for(const d of S.deposits)csv+=`deposit,${d.date},,,,${d.amount.toFixed(2)}\n`;
   download('finash-'+todayISO()+'.csv',csv,'text/csv');
   toast('CSV exported');
@@ -1191,6 +1255,7 @@ document.getElementById('import-file').addEventListener('change',e=>{
       if(!confirm('Replace current data with this backup?'))return;
       S={stocks:p.stocks,prices:p.prices||{},targets:p.targets||{},alerted:p.alerted||{},
          crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},cryptoAlerted:p.cryptoAlerted||{},
+         sales:p.sales||[],
          pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
          deposits:p.deposits,
          settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})};
