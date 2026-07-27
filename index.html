@@ -302,6 +302,28 @@ details.settings summary{
 details.settings summary::before{content:"▸ ";font-size:.7rem}
 details.settings[open] summary::before{content:"▾ "}
 details.settings form{margin-top:12px}
+/* ---------- app lock ---------- */
+#lock-overlay{
+  position:fixed;inset:0;z-index:999;
+  background:var(--ink);color:var(--paper);
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;
+}
+#lock-overlay[hidden]{display:none}
+.lock-inner{text-align:center;max-width:300px;width:100%}
+.lock-inner h1{font-family:var(--display);font-weight:600;font-size:1.8rem;margin-bottom:4px}
+.lock-inner .sub{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:28px}
+.lock-inner .btn{width:100%;margin-bottom:14px}
+.lock-inner .btn-gold{background:var(--gold);color:var(--ink)}
+.lock-pin{display:flex;gap:8px}
+.lock-pin input{
+  flex:1;text-align:center;letter-spacing:.4em;font-family:var(--mono);
+  background:#26262f;border:1px solid #3d3d4a;color:var(--paper);
+}
+.lock-pin input:focus{outline:2px solid var(--gold);border-color:var(--gold)}
+.lock-pin .btn{width:auto;margin:0;background:#26262f;color:var(--paper);border:1px solid #3d3d4a}
+#lock-msg{font-size:.8rem;color:var(--gold);margin-top:14px;min-height:1.2em}
+.lock-setup .row{margin-bottom:10px}
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important;animation:none!important}
 }
@@ -356,6 +378,11 @@ details.settings form{margin-top:12px}
       <button class="btn btn-ghost" id="btn-import-json">Restore</button>
     </div>
     <input type="file" id="import-file" accept="application/json" hidden>
+  </div>
+
+  <div class="card">
+    <h2>App lock</h2>
+    <div id="lock-card"></div>
   </div>
 </section>
 
@@ -523,6 +550,19 @@ details.settings form{margin-top:12px}
     Savings
   </button>
 </nav>
+
+<div id="lock-overlay" hidden>
+  <div class="lock-inner">
+    <h1>Finash</h1>
+    <div class="sub">Locked</div>
+    <button class="btn btn-gold" id="lock-bio-btn" hidden>Unlock with fingerprint</button>
+    <form class="lock-pin" id="lock-pin-form">
+      <input id="lock-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="PIN" aria-label="Enter PIN">
+      <button class="btn" type="submit">Unlock</button>
+    </form>
+    <div id="lock-msg"></div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -1334,6 +1374,120 @@ function renderAll(){
 hydrateGoalForm();
 renderAll();
 checkTargetHits();
+
+/* =============== app lock =============== */
+/* Stored under its own key so backups never contain the PIN hash
+   and restoring a backup can't remove the lock. */
+const LOCK_KEY='finash-lock';
+let LOCK=(()=>{try{return JSON.parse(localStorage.getItem(LOCK_KEY))}catch(e){return null}})();
+let bioAvailable=false;
+if(window.PublicKeyCredential&&PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable){
+  PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(v=>{bioAvailable=!!v;renderLockCard();}).catch(()=>{});
+}
+const b64=b=>btoa(String.fromCharCode(...new Uint8Array(b)));
+const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function pinHash(pin,saltHex){
+  const salt=saltHex?Uint8Array.from(saltHex.match(/../g),h=>parseInt(h,16)):crypto.getRandomValues(new Uint8Array(16));
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pin),'PBKDF2',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:salt,iterations:150000},km,256);
+  return{
+    hash:[...new Uint8Array(bits)].map(x=>x.toString(16).padStart(2,'0')).join(''),
+    salt:[...salt].map(x=>x.toString(16).padStart(2,'0')).join('')
+  };
+}
+function renderLockCard(){
+  const el=document.getElementById('lock-card');
+  if(LOCK&&LOCK.enabled){
+    el.innerHTML=`<p class="hint">Lock is on — the app asks for ${LOCK.credId?'your fingerprint (or PIN)':'your PIN'} when it opens or after a minute in the background.</p>
+      <button class="btn btn-ghost" onclick="disableLock()">Turn off app lock</button>`;
+    return;
+  }
+  el.innerHTML=`<p class="hint">Require ${bioAvailable?'a fingerprint / face unlock or ':''}a PIN every time the app opens. This hides the app from prying eyes; your data itself stays on this device.</p>
+    <div class="lock-setup">
+      <div class="row">
+        <div><label for="lk-pin1">Choose a PIN (4–8 digits)</label><input id="lk-pin1" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></div>
+        <div><label for="lk-pin2">Repeat PIN</label><input id="lk-pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></div>
+      </div>
+      ${bioAvailable?'<label class="cash-check"><input type="checkbox" id="lk-bio" checked> Also unlock with fingerprint / face</label>':''}
+      <button class="btn btn-primary" onclick="enableLock()">Enable app lock</button>
+    </div>`;
+}
+async function enableLock(){
+  const p1=document.getElementById('lk-pin1').value;
+  const p2=document.getElementById('lk-pin2').value;
+  if(!/^\d{4,8}$/.test(p1)){toast('PIN must be 4–8 digits');return;}
+  if(p1!==p2){toast('PINs don’t match');return;}
+  const {hash,salt}=await pinHash(p1);
+  let credId='';
+  const bioBox=document.getElementById('lk-bio');
+  if(bioBox&&bioBox.checked){
+    try{
+      const cred=await navigator.credentials.create({publicKey:{
+        challenge:crypto.getRandomValues(new Uint8Array(32)),
+        rp:{name:'Finash'},
+        user:{id:crypto.getRandomValues(new Uint8Array(16)),name:'finash',displayName:'Finash'},
+        pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+        authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required'},
+        timeout:60000
+      }});
+      credId=b64(cred.rawId);
+    }catch(e){toast('Fingerprint setup skipped — PIN only');}
+  }
+  LOCK={enabled:true,pinHash:hash,pinSalt:salt,credId:credId};
+  localStorage.setItem(LOCK_KEY,JSON.stringify(LOCK));
+  renderLockCard();
+  toast('App lock enabled'+(credId?' with fingerprint':''));
+}
+function disableLock(){
+  if(!confirm('Turn off the app lock?'))return;
+  LOCK=null;localStorage.removeItem(LOCK_KEY);
+  renderLockCard();toast('App lock turned off');
+}
+function showLock(){
+  const ov=document.getElementById('lock-overlay');
+  document.getElementById('lock-bio-btn').hidden=!(LOCK&&LOCK.credId);
+  document.getElementById('lock-msg').textContent='';
+  document.getElementById('lock-pin').value='';
+  ov.hidden=false;
+}
+function hideLock(){
+  document.getElementById('lock-overlay').hidden=true;
+  document.getElementById('lock-pin').value='';
+}
+async function unlockBio(){
+  try{
+    await navigator.credentials.get({publicKey:{
+      challenge:crypto.getRandomValues(new Uint8Array(32)),
+      allowCredentials:[{type:'public-key',id:unb64(LOCK.credId),transports:['internal']}],
+      userVerification:'required',
+      timeout:60000
+    }});
+    hideLock();
+  }catch(e){
+    document.getElementById('lock-msg').textContent='Fingerprint not recognized — try again or use your PIN.';
+  }
+}
+async function unlockPin(){
+  const v=document.getElementById('lock-pin').value;
+  if(!v)return;
+  const {hash}=await pinHash(v,LOCK.pinSalt);
+  if(hash===LOCK.pinHash)hideLock();
+  else{
+    document.getElementById('lock-pin').value='';
+    document.getElementById('lock-msg').textContent='Wrong PIN — try again.';
+  }
+}
+document.getElementById('lock-bio-btn').addEventListener('click',unlockBio);
+document.getElementById('lock-pin-form').addEventListener('submit',e=>{e.preventDefault();unlockPin();});
+const RELOCK_MS=60*1000;
+let lockHiddenAt=0;
+document.addEventListener('visibilitychange',()=>{
+  if(!(LOCK&&LOCK.enabled))return;
+  if(document.visibilityState==='hidden')lockHiddenAt=Date.now();
+  else if(lockHiddenAt&&Date.now()-lockHiddenAt>RELOCK_MS)showLock();
+});
+renderLockCard();
+if(LOCK&&LOCK.enabled)showLock();
 
 /* =============== PWA =============== */
 if('serviceWorker'in navigator){
