@@ -554,7 +554,7 @@ details.settings form{margin-top:12px}
 <div id="lock-overlay" hidden>
   <div class="lock-inner">
     <h1>Finash</h1>
-    <div class="sub">Locked</div>
+    <div class="sub" id="lock-sub">Locked</div>
     <button class="btn btn-gold" id="lock-bio-btn" hidden>Unlock with fingerprint</button>
     <form class="lock-pin" id="lock-pin-form">
       <input id="lock-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="PIN" aria-label="Enter PIN">
@@ -1448,6 +1448,7 @@ function showLock(){
   document.getElementById('lock-bio-btn').hidden=!(LOCK&&LOCK.credId);
   document.getElementById('lock-msg').textContent='';
   document.getElementById('lock-pin').value='';
+  document.getElementById('lock-sub').textContent=(LOCK&&LOCK.credId)?'Tap anywhere to unlock':'Locked';
   ov.hidden=false;
   if(LOCK&&LOCK.credId)setTimeout(()=>unlockBio(true),300);
 }
@@ -1455,7 +1456,10 @@ function hideLock(){
   document.getElementById('lock-overlay').hidden=true;
   document.getElementById('lock-pin').value='';
 }
+let bioBusy=false;
 async function unlockBio(auto){
+  if(!LOCK||!LOCK.credId||bioBusy)return;
+  bioBusy=true;
   try{
     await navigator.credentials.get({publicKey:{
       challenge:crypto.getRandomValues(new Uint8Array(32)),
@@ -1468,8 +1472,10 @@ async function unlockBio(auto){
     /* An auto-attempt can be rejected before the prompt is even shown
        (browser requires a tap first) — don't show a scary error for that. */
     document.getElementById('lock-msg').textContent=auto===true
-      ?'Tap “Unlock with fingerprint” or enter your PIN.'
+      ?'Tap anywhere to unlock, or enter your PIN.'
       :'Fingerprint not recognized — try again or use your PIN.';
+  }finally{
+    bioBusy=false;
   }
 }
 async function unlockPin(){
@@ -1483,6 +1489,10 @@ async function unlockPin(){
   }
 }
 document.getElementById('lock-bio-btn').addEventListener('click',unlockBio);
+document.getElementById('lock-overlay').addEventListener('click',e=>{
+  if(e.target.closest('.lock-pin')||e.target.closest('#lock-bio-btn'))return;
+  unlockBio(true);
+});
 document.getElementById('lock-pin-form').addEventListener('submit',e=>{e.preventDefault();unlockPin();});
 const RELOCK_MS=60*1000;
 let lockHiddenAt=0;
