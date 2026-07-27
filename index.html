@@ -709,6 +709,7 @@ function holdingCard(kind,p){
     </div>
     <div class="sell-row" id="sf-${kind}-${p.sym}" hidden>
       <input type="number" step="any" min="0" inputmode="decimal" placeholder="qty (max ${qtyStr})" id="sq-${kind}-${p.sym}" aria-label="Quantity sold of ${p.sym}">
+      <button class="btn btn-ghost" type="button" onclick="sellAllQty('${kind}','${p.sym}')">All</button>
       <input type="number" step="any" min="0" inputmode="decimal" placeholder="sold @ $" id="sp-${kind}-${p.sym}" aria-label="Sale price for ${p.sym}">
       <input type="date" id="sd-${kind}-${p.sym}" aria-label="Sale date for ${p.sym}">
       <button class="btn btn-ghost" onclick="recordSale('${kind}','${p.sym}')">Record sale</button>
@@ -893,6 +894,12 @@ function toggleSellForm(kind,sym){
     document.getElementById('sd-'+kind+'-'+sym).value=todayISO();
     document.getElementById('sq-'+kind+'-'+sym).focus();
   }
+}
+function sellAllQty(kind,sym){
+  const pos=aggPositions(kind).find(p=>p.sym===sym);
+  if(!pos||!(pos.qty>0))return;
+  document.getElementById('sq-'+kind+'-'+sym).value=pos.qty;
+  document.getElementById('sp-'+kind+'-'+sym).focus();
 }
 function recordSale(kind,sym){
   const q=parseFloat(document.getElementById('sq-'+kind+'-'+sym).value);
