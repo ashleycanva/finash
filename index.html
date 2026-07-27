@@ -29,6 +29,7 @@
   --loss-tint:#f7e6e4;
   --violet:#8E7DBE;
   --violet-deep:#6b5a9e;
+  --cash:#E08E45;
   --line:#e4e2da;
   --radius:14px;
   --mono:'IBM Plex Mono',ui-monospace,monospace;
@@ -137,11 +138,13 @@ h2{
 }
 .comp-bar .seg-invest{background:var(--teal)}
 .comp-bar .seg-crypto{background:var(--violet)}
+.comp-bar .seg-cash{background:var(--cash)}
 .comp-bar .seg-save{background:var(--gold)}
 .comp-legend{display:flex;gap:18px;font-size:.8rem;color:var(--ink-soft)}
 .comp-legend .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:1px}
 .comp-legend .dot.t{background:var(--teal)}
 .comp-legend .dot.v{background:var(--violet)}
+.comp-legend .dot.c{background:var(--cash)}
 .comp-legend .dot.g{background:var(--gold)}
 .comp-legend b{font-family:var(--mono);font-weight:600}
 
@@ -226,6 +229,10 @@ input:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:var(-
 .price-note{font-size:.72rem;color:var(--ink-faint);font-family:var(--mono)}
 .hint{font-size:.78rem;color:var(--ink-faint);margin:6px 0 10px;line-height:1.45}
 .hint a{color:var(--teal-deep)}
+.cash-check{display:flex;align-items:center;gap:7px;font-size:.8rem;font-weight:500;color:var(--ink-soft);margin:-2px 0 12px;cursor:pointer}
+.cash-check input[type=checkbox]{width:auto;accent-color:var(--cash);margin:0}
+.cash-check b{font-family:var(--mono)}
+.cash-check.off{opacity:.45;pointer-events:none}
 
 .tx{
   display:flex;justify-content:space-between;align-items:center;
@@ -319,11 +326,13 @@ details.settings form{margin-top:12px}
     <div class="comp-bar" aria-hidden="true">
       <div class="seg-invest" id="ov-seg-invest" style="width:0%"></div>
       <div class="seg-crypto" id="ov-seg-crypto" style="width:0%"></div>
+      <div class="seg-cash" id="ov-seg-cash" style="width:0%"></div>
       <div class="seg-save" id="ov-seg-save" style="width:0%"></div>
     </div>
     <div class="comp-legend">
       <span><span class="dot t"></span>Stocks <b id="ov-invested">$0</b></span>
       <span><span class="dot v"></span>Crypto <b id="ov-crypto">$0</b></span>
+      <span><span class="dot c"></span>Cash <b id="ov-cash">$0</b></span>
       <span><span class="dot g"></span>Saved <b id="ov-saved">$0</b></span>
     </div>
   </div>
@@ -370,6 +379,7 @@ details.settings form{margin-top:12px}
         <div><label for="s-price">Price per share ($)</label><input id="s-price" type="number" step="any" min="0" placeholder="512.40" required inputmode="decimal"></div>
       </div>
       <div class="mode-hint" id="s-mode-hint" hidden></div>
+      <label class="cash-check" id="s-cash-wrap"><input type="checkbox" id="s-cash"> Paid from cash balance (<b id="s-cash-avail">$0</b>)</label>
       <button class="btn btn-primary" type="submit">Add purchase</button>
     </form>
   </div>
@@ -419,6 +429,7 @@ details.settings form{margin-top:12px}
         <div><label for="c-price">Price per coin ($)</label><input id="c-price" type="number" step="any" min="0" placeholder="67000" required inputmode="decimal"></div>
       </div>
       <div class="mode-hint" id="c-mode-hint" hidden></div>
+      <label class="cash-check" id="c-cash-wrap"><input type="checkbox" id="c-cash"> Paid from cash balance (<b id="c-cash-avail">$0</b>)</label>
       <button class="btn btn-primary" type="submit">Add buy</button>
     </form>
   </div>
@@ -475,6 +486,7 @@ details.settings form{margin-top:12px}
         <div><label for="d-amount">Amount ($)</label><input id="d-amount" type="number" step="any" min="0.01" placeholder="500" required inputmode="decimal"></div>
         <div><label for="d-date">Date</label><input id="d-date" type="date" required></div>
       </div>
+      <label class="cash-check" id="d-cash-wrap"><input type="checkbox" id="d-cash"> Moved from cash balance (<b id="d-cash-avail">$0</b>)</label>
       <button class="btn btn-primary" type="submit">Add deposit</button>
     </form>
   </div>
@@ -586,6 +598,14 @@ function cryptoMarketValue(){
   },0);
 }
 function realizedTotal(kind){return aggPositions(kind).reduce((a,p)=>a+p.realized,0);}
+/* Cash = sale proceeds − buys paid from cash − deposits moved from cash */
+function cashBalance(){
+  const salesIn=S.sales.reduce((a,s)=>a+s.qty*s.price,0);
+  const stockOut=S.stocks.reduce((a,s)=>a+(s.fromCash?s.shares*s.price:0),0);
+  const cryOut=S.crypto.reduce((a,c)=>a+(c.fromCash?c.qty*c.price:0),0);
+  const depOut=S.deposits.reduce((a,d)=>a+(d.fromCash?d.amount:0),0);
+  return salesIn-stockOut-cryOut-depOut;
+}
 
 /* =============== toast =============== */
 let toastT;
@@ -657,7 +677,9 @@ document.getElementById('form-stock').addEventListener('submit',e=>{
     sh=v;
   }
   if(!t||!(sh>0)||!(pr>=0)||!dt)return;
-  S.stocks.push({id:uid(),ticker:t,shares:sh,price:pr,date:dt});
+  const fromCash=document.getElementById('s-cash').checked;
+  if(fromCash&&sh*pr>cashBalance()+0.005){toast('Only '+fmt(Math.max(0,cashBalance()))+' cash available');return;}
+  S.stocks.push({id:uid(),ticker:t,shares:sh,price:pr,date:dt,fromCash:fromCash||undefined});
   if(S.prices[t]==null)S.prices[t]=pr;
   save();renderAll();
   e.target.reset();document.getElementById('s-date').value=todayISO();
@@ -770,7 +792,7 @@ function renderStockHistory(){
   const el=document.getElementById('stock-history');
   const rows=[
     ...S.stocks.map(s=>({date:s.date,html:`<div class="tx">
-      <span class="l">${s.date} · <b>${s.ticker}</b> · ${s.shares.toLocaleString('en-US',{maximumFractionDigits:6})} sh @ ${fmt(s.price)}</span>
+      <span class="l">${s.date} · <b>${s.ticker}</b> · ${s.shares.toLocaleString('en-US',{maximumFractionDigits:6})} sh @ ${fmt(s.price)}${s.fromCash?' · from cash':''}</span>
       <span><span class="amt">${fmt(s.shares*s.price)}</span><button class="del" onclick="delStock('${s.id}')" aria-label="Delete purchase">✕</button></span>
     </div>`})),
     ...S.sales.filter(x=>x.kind==='stock').map(s=>({date:s.date,html:saleRow(s,' sh')}))
@@ -838,7 +860,9 @@ document.getElementById('form-crypto').addEventListener('submit',e=>{
     q=v;
   }
   if(!sym||!(q>0)||!(pr>=0)||!dt)return;
-  S.crypto.push({id:uid(),symbol:sym,qty:q,price:pr,date:dt});
+  const fromCash=document.getElementById('c-cash').checked;
+  if(fromCash&&q*pr>cashBalance()+0.005){toast('Only '+fmt(Math.max(0,cashBalance()))+' cash available');return;}
+  S.crypto.push({id:uid(),symbol:sym,qty:q,price:pr,date:dt,fromCash:fromCash||undefined});
   if(S.cryptoPrices[sym]==null)S.cryptoPrices[sym]=pr;
   save();renderAll();
   e.target.reset();document.getElementById('c-date').value=todayISO();
@@ -912,7 +936,18 @@ function recordSale(kind,sym){
   if(!(pr>=0)){toast('Enter the sale price');return;}
   S.sales.push({id:uid(),kind:kind,symbol:sym,qty:q,price:pr,date:dt});
   save();renderAll();
-  toast(sym+' sale recorded · '+fmt(q*pr));
+  toast(sym+' sold · '+fmt(q*pr)+' added to cash');
+}
+function renderCashUI(){
+  const cash=cashBalance();
+  const avail=fmt(Math.max(0,cash));
+  for(const pre of ['s','c','d']){
+    document.getElementById(pre+'-cash-avail').textContent=avail;
+    const wrap=document.getElementById(pre+'-cash-wrap');
+    const box=document.getElementById(pre+'-cash');
+    if(cash>0.005){wrap.classList.remove('off');}
+    else{wrap.classList.add('off');box.checked=false;}
+  }
 }
 function delSale(id){
   const s=S.sales.find(x=>x.id===id);
@@ -931,7 +966,7 @@ function renderCryptoHistory(){
   const el=document.getElementById('crypto-history');
   const rows=[
     ...S.crypto.map(c=>({date:c.date,html:`<div class="tx">
-      <span class="l">${c.date} · <b>${c.symbol}</b> · ${c.qty.toLocaleString('en-US',{maximumFractionDigits:8})} @ ${fmt(c.price)}</span>
+      <span class="l">${c.date} · <b>${c.symbol}</b> · ${c.qty.toLocaleString('en-US',{maximumFractionDigits:8})} @ ${fmt(c.price)}${c.fromCash?' · from cash':''}</span>
       <span><span class="amt">${fmt(c.qty*c.price)}</span><button class="del" onclick="delCrypto('${c.id}')" aria-label="Delete buy">✕</button></span>
     </div>`})),
     ...S.sales.filter(x=>x.kind==='crypto').map(s=>({date:s.date,html:saleRow(s,'')}))
@@ -1096,7 +1131,9 @@ document.getElementById('form-deposit').addEventListener('submit',e=>{
   const a=parseFloat(document.getElementById('d-amount').value);
   const dt=document.getElementById('d-date').value;
   if(!(a>0)||!dt)return;
-  S.deposits.push({id:uid(),amount:a,date:dt});
+  const fromCash=document.getElementById('d-cash').checked;
+  if(fromCash&&a>cashBalance()+0.005){toast('Only '+fmt(Math.max(0,cashBalance()))+' cash available');return;}
+  S.deposits.push({id:uid(),amount:a,date:dt,fromCash:fromCash||undefined});
   save();renderAll();
   e.target.reset();document.getElementById('d-date').value=todayISO();
   toast('Deposit added');
@@ -1157,7 +1194,7 @@ function renderDepositHistory(){
   if(!S.deposits.length){el.innerHTML='<div class="empty"><b>No deposits yet.</b><br>Log your monthly deposit above to start the streak.</div>';return;}
   el.innerHTML=[...S.deposits].sort((a,b)=>b.date.localeCompare(a.date)).map(d=>
     `<div class="tx">
-      <span class="l">${d.date}</span>
+      <span class="l">${d.date}${d.fromCash?' · from cash':''}</span>
       <span><span class="amt">${fmt(d.amount)}</span><button class="del" onclick="delDeposit('${d.id}')" aria-label="Delete deposit">✕</button></span>
     </div>`).join('');
 }
@@ -1172,15 +1209,21 @@ function delDeposit(id){
 function renderOverview(){
   const inv=stockRemCost()+cryptoRemCost(),sav=totalSaved();
   const stockMv=marketValue(),cryMv=cryptoMarketValue();
+  const cash=cashBalance();
+  const cashPos=Math.max(0,cash);
   const mv=stockMv+cryMv;
-  const total=mv+sav;
+  const total=mv+cash+sav;
   document.getElementById('ov-total').textContent=fmt(total);
   document.getElementById('ov-invested').textContent=fmt0(stockMv);
   document.getElementById('ov-crypto').textContent=fmt0(cryMv);
+  const cashEl=document.getElementById('ov-cash');
+  cashEl.textContent=(cash<-0.005?'−':'')+fmt0(Math.abs(cash));
+  cashEl.style.color=cash<-0.005?'var(--loss)':'';
   document.getElementById('ov-saved').textContent=fmt0(sav);
-  const sum=mv+sav||1;
+  const sum=mv+cashPos+sav||1;
   document.getElementById('ov-seg-invest').style.width=(stockMv/sum*100)+'%';
   document.getElementById('ov-seg-crypto').style.width=(cryMv/sum*100)+'%';
+  document.getElementById('ov-seg-cash').style.width=(cashPos/sum*100)+'%';
   document.getElementById('ov-seg-save').style.width=(sav/sum*100)+'%';
 
   const realized=realizedTotal('stock')+realizedTotal('crypto');
@@ -1243,11 +1286,11 @@ function download(name,content,type){
   a.download=name;a.click();URL.revokeObjectURL(a.href);
 }
 document.getElementById('btn-export-csv').addEventListener('click',()=>{
-  let csv='type,date,ticker,shares,price_per_share,amount\n';
-  for(const s of S.stocks)csv+=`stock,${s.date},${s.ticker},${s.shares},${s.price},${(s.shares*s.price).toFixed(2)}\n`;
-  for(const c of S.crypto)csv+=`crypto,${c.date},${c.symbol},${c.qty},${c.price},${(c.qty*c.price).toFixed(2)}\n`;
-  for(const s of S.sales)csv+=`sell-${s.kind},${s.date},${s.symbol},${s.qty},${s.price},${(s.qty*s.price).toFixed(2)}\n`;
-  for(const d of S.deposits)csv+=`deposit,${d.date},,,,${d.amount.toFixed(2)}\n`;
+  let csv='type,date,ticker,shares,price_per_share,amount,from_cash\n';
+  for(const s of S.stocks)csv+=`stock,${s.date},${s.ticker},${s.shares},${s.price},${(s.shares*s.price).toFixed(2)},${s.fromCash?'yes':''}\n`;
+  for(const c of S.crypto)csv+=`crypto,${c.date},${c.symbol},${c.qty},${c.price},${(c.qty*c.price).toFixed(2)},${c.fromCash?'yes':''}\n`;
+  for(const s of S.sales)csv+=`sell-${s.kind},${s.date},${s.symbol},${s.qty},${s.price},${(s.qty*s.price).toFixed(2)},\n`;
+  for(const d of S.deposits)csv+=`deposit,${d.date},,,,${d.amount.toFixed(2)},${d.fromCash?'yes':''}\n`;
   download('finash-'+todayISO()+'.csv',csv,'text/csv');
   toast('CSV exported');
 });
@@ -1284,7 +1327,7 @@ document.getElementById('import-file').addEventListener('change',e=>{
 function renderAll(){
   renderHoldings();renderStockHistory();
   renderCryptoHoldings();renderCryptoHistory();
-  renderPriceNotes();
+  renderPriceNotes();renderCashUI();
   renderGoal();renderStreak();renderDepositHistory();
   renderOverview();
 }
