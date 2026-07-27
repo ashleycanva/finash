@@ -521,14 +521,17 @@ let S=load();
 function load(){
   try{
     const raw=localStorage.getItem(KEY);
-    if(raw){const p=JSON.parse(raw);return{
+    if(raw){const p=JSON.parse(raw);
+    /* Object.assign keeps fields this app version doesn't know about,
+       so an older cached version can't silently drop newer data. */
+    return Object.assign({},p,{
       stocks:p.stocks||[],prices:p.prices||{},targets:p.targets||{},alerted:p.alerted||{},
       crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},cryptoAlerted:p.cryptoAlerted||{},
       sales:p.sales||[],
       pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
       deposits:p.deposits||[],
       settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})
-    };}
+    });}
   }catch(e){}
   return{stocks:[],prices:{},targets:{},alerted:{},crypto:[],cryptoPrices:{},cryptoTargets:{},cryptoAlerted:{},sales:[],pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''}};
 }
@@ -1253,12 +1256,13 @@ document.getElementById('import-file').addEventListener('change',e=>{
       const p=JSON.parse(r.result);
       if(!p||!Array.isArray(p.stocks)||!Array.isArray(p.deposits))throw 0;
       if(!confirm('Replace current data with this backup?'))return;
-      S={stocks:p.stocks,prices:p.prices||{},targets:p.targets||{},alerted:p.alerted||{},
+      S=Object.assign({},p,{
+         stocks:p.stocks,prices:p.prices||{},targets:p.targets||{},alerted:p.alerted||{},
          crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},cryptoAlerted:p.cryptoAlerted||{},
          sales:p.sales||[],
          pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
          deposits:p.deposits,
-         settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})};
+         settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})});
       save();hydrateGoalForm();
       document.getElementById('fh-key').value=S.settings.finnhubKey||'';
       renderAll();toast('Backup restored');
