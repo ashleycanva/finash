@@ -1449,12 +1449,13 @@ function showLock(){
   document.getElementById('lock-msg').textContent='';
   document.getElementById('lock-pin').value='';
   ov.hidden=false;
+  if(LOCK&&LOCK.credId)setTimeout(()=>unlockBio(true),300);
 }
 function hideLock(){
   document.getElementById('lock-overlay').hidden=true;
   document.getElementById('lock-pin').value='';
 }
-async function unlockBio(){
+async function unlockBio(auto){
   try{
     await navigator.credentials.get({publicKey:{
       challenge:crypto.getRandomValues(new Uint8Array(32)),
@@ -1464,7 +1465,11 @@ async function unlockBio(){
     }});
     hideLock();
   }catch(e){
-    document.getElementById('lock-msg').textContent='Fingerprint not recognized — try again or use your PIN.';
+    /* An auto-attempt can be rejected before the prompt is even shown
+       (browser requires a tap first) — don't show a scary error for that. */
+    document.getElementById('lock-msg').textContent=auto===true
+      ?'Tap “Unlock with fingerprint” or enter your PIN.'
+      :'Fingerprint not recognized — try again or use your PIN.';
   }
 }
 async function unlockPin(){
