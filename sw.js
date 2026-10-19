@@ -16,6 +16,8 @@ self.addEventListener('activate', e => {
 // Network-first for the page (so updates arrive), cache fallback for offline.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  // Only the app's own files: outside APIs (prices, charts) must fail honestly, not return the app page.
+  if (new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     fetch(e.request)
       .then(res => {

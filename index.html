@@ -361,6 +361,25 @@ input:focus{outline:2px solid var(--accent-ink);outline-offset:-1px;border-color
 }
 .tx .del:hover{color:var(--loss)}
 
+/* performance chart */
+.perf-pills{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+.perf-pills::-webkit-scrollbar{display:none}
+.seg-btn{
+  flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+  border-radius:999px;padding:7px 14px;font-weight:600;font-size:.82rem;font-family:var(--mono);
+}
+.seg-btn.on{background:var(--fill);color:var(--on-fill);border-color:var(--fill)}
+.seg-btn:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+.perf-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.perf-stat{background:var(--accent-soft);border-radius:10px;padding:9px 10px}
+.perf-stat .v{font-family:var(--mono);font-weight:600;font-size:.95rem;font-variant-numeric:tabular-nums}
+.perf-stat .l{font-size:.7rem;color:var(--ink-soft);margin-top:1px}
+.perf-chart svg{width:100%;height:auto;display:block}
+.perf-chart iframe{width:100%;height:340px;border:0;border-radius:10px;background:#fff}
+.perf-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.74rem;color:var(--ink-soft);margin-top:8px}
+.perf-legend i{display:inline-block;width:16px;height:0;border-top:3px solid var(--teal-deep);vertical-align:middle;margin-right:5px}
+.perf-legend i.dash{border-top:2px dashed var(--ink-faint)}
+
 #alloc:not(:empty),#crypto-alloc:not(:empty){
   background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:14px 14px 0;margin-bottom:12px;
@@ -516,6 +535,15 @@ details.settings form{margin-top:12px}
     <div class="b-sub" id="ban-stock-sub">No holdings yet</div>
   </div>
 
+  <div class="sec-label">Performance</div>
+  <div class="card" id="perf-card">
+    <div class="perf-pills" id="perf-pills"></div>
+    <div class="perf-stats" id="perf-stats"></div>
+    <div class="perf-chart" id="perf-body"></div>
+    <div class="chart-note" id="perf-note"></div>
+  </div>
+
+  <div class="sec-label">Add</div>
   <details class="add-panel" id="add-stock">
     <summary><span class="plus">+</span> Log a purchase</summary>
     <div class="panel-body">
@@ -771,11 +799,11 @@ function load(){
       crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},cryptoAlerted:p.cryptoAlerted||{},
       sales:p.sales||[],
       pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
-      deposits:p.deposits||[],withdrawals:p.withdrawals||[],
+      deposits:p.deposits||[],withdrawals:p.withdrawals||[],valueHistory:p.valueHistory||[],
       settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15,apyStart:''},p.settings||{})
     });}
   }catch(e){}
-  return{stocks:[],prices:{},targets:{},alerted:{},crypto:[],cryptoPrices:{},cryptoTargets:{},cryptoAlerted:{},sales:[],pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],withdrawals:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15,apyStart:''}};
+  return{stocks:[],prices:{},targets:{},alerted:{},crypto:[],cryptoPrices:{},cryptoTargets:{},cryptoAlerted:{},sales:[],pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],withdrawals:[],valueHistory:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15,apyStart:''}};
 }
 function save(){localStorage.setItem(KEY,JSON.stringify(S));}
 const fmt=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1644,7 +1672,7 @@ document.getElementById('import-file').addEventListener('change',e=>{
          crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},cryptoAlerted:p.cryptoAlerted||{},
          sales:p.sales||[],
          pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
-         deposits:p.deposits,withdrawals:p.withdrawals||[],
+         deposits:p.deposits,withdrawals:p.withdrawals||[],valueHistory:p.valueHistory||[],
          settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15,apyStart:''},p.settings||{})});
       save();hydrateGoalForm();
       document.getElementById('fh-key').value=S.settings.finnhubKey||'';
@@ -1656,6 +1684,129 @@ document.getElementById('import-file').addEventListener('change',e=>{
 });
 
 /* =============== render =============== */
+/* =============== stock performance =============== */
+let perfSel='ALL',perfPillsKey='',perfBodyKey='';
+/* One snapshot per day (the day's latest), so the market-value line grows as the app is used. */
+function recordSnapshot(){
+  if(!stockPositions().length)return;
+  if(!Array.isArray(S.valueHistory))S.valueHistory=[];
+  const d=todayISO(),v=+marketValue().toFixed(2),c=+stockRemCost().toFixed(2);
+  const last=S.valueHistory[S.valueHistory.length-1];
+  if(last&&last.d===d){
+    if(last.v===v&&last.c===c)return;
+    last.v=v;last.c=c;
+  }else S.valueHistory.push({d:d,v:v,c:c});
+  save();
+}
+function stockCostTimeline(){
+  const ev=[
+    ...S.stocks.map(s=>({d:s.date,t:0,k:s.ticker,q:s.shares,p:s.price})),
+    ...S.sales.filter(s=>s.kind==='stock').map(s=>({d:s.date,t:1,k:s.symbol,q:s.qty,p:s.price}))
+  ].sort((a,b)=>a.d.localeCompare(b.d)||a.t-b.t);
+  const pos={},pts=[];let total=0;
+  for(const e of ev){
+    const o=pos[e.k]||(pos[e.k]={q:0,c:0});
+    if(e.t===0){o.q+=e.q;o.c+=e.q*e.p;total+=e.q*e.p;}
+    else{
+      const avg=o.q>0?o.c/o.q:0,q=Math.min(e.q,o.q);
+      o.q-=q;o.c-=avg*q;total-=avg*q;
+    }
+    pts.push({d:e.d,v:Math.max(0,total)});
+  }
+  pts.push({d:todayISO(),v:stockRemCost()});
+  return pts;
+}
+function portfolioChartSvg(){
+  const day=86400000;
+  const cost=stockCostTimeline().map(p=>({t:new Date(p.d).getTime(),v:p.v}));
+  const val=(S.valueHistory||[]).map(p=>({t:new Date(p.d).getTime(),v:p.v}));
+  const all=[...cost,...val];
+  const maxT=Math.max(new Date(todayISO()).getTime(),...all.map(p=>p.t));
+  let minT=Math.min(...all.map(p=>p.t));
+  if(minT>=maxT)minT=maxT-day;
+  const W=560,H=210,P=28;
+  const maxY=(Math.max(...all.map(p=>p.v))||1)*1.1;
+  const x=t=>P+(t-minT)/(maxT-minT)*(W-2*P);
+  const y=v=>H-P-(v/maxY)*(H-2*P);
+  const grid=[0.25,0.5,0.75,1].map(f=>{
+    const gv=maxY*f;
+    return `<line x1="${P}" y1="${y(gv).toFixed(1)}" x2="${W-P}" y2="${y(gv).toFixed(1)}" stroke="var(--line)"/>
+    <text x="${P}" y="${(y(gv)-4).toFixed(1)}" font-size="9" fill="var(--ink-faint)" font-family="var(--mono)">${fmt0(gv)}</text>`;
+  }).join('');
+  let costPath='M'+x(cost[0].t).toFixed(1)+' '+y(cost[0].v).toFixed(1);
+  for(let i=1;i<cost.length;i++)costPath+=' H'+x(cost[i].t).toFixed(1)+' V'+y(cost[i].v).toFixed(1);
+  costPath+=' H'+x(maxT).toFixed(1);
+  let valSvg='';
+  if(val.length){
+    const vp=val.map((p,i)=>(i?'L':'M')+x(p.t).toFixed(1)+' '+y(p.v).toFixed(1)).join(' ');
+    if(val.length>1){
+      const area=vp+` L${x(val[val.length-1].t).toFixed(1)} ${H-P} L${x(val[0].t).toFixed(1)} ${H-P} Z`;
+      valSvg+=`<path d="${area}" fill="var(--teal-tint)" opacity=".85"/>
+      <path d="${vp}" fill="none" stroke="var(--teal-deep)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    }
+    const dots=val.length<=30?val:[val[val.length-1]];
+    valSvg+=dots.map(p=>`<circle cx="${x(p.t).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.5" fill="var(--teal-deep)" stroke="#fff" stroke-width="1.5"/>`).join('');
+    const lp=val[val.length-1];
+    valSvg+=`<text x="${(x(lp.t)).toFixed(1)}" y="${(y(lp.v)-9).toFixed(1)}" text-anchor="end" font-size="10" font-weight="600" fill="var(--teal-deep)" font-family="var(--mono)">${fmt0(lp.v)}</text>`;
+  }
+  const dateLbl=t=>new Date(t).toISOString().slice(0,10);
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Portfolio market value versus invested cost over time">
+    ${grid}
+    <path d="${costPath}" fill="none" stroke="var(--ink-faint)" stroke-width="2" stroke-dasharray="5 4"/>
+    ${valSvg}
+    <text x="${P}" y="${H-8}" font-size="9" fill="var(--ink-faint)" font-family="var(--mono)">${dateLbl(minT)}</text>
+    <text x="${W-P}" y="${H-8}" text-anchor="end" font-size="9" fill="var(--ink-faint)" font-family="var(--mono)">${dateLbl(maxT)}</text>
+  </svg>
+  <div class="perf-legend"><span><i></i>Market value</span><span><i class="dash"></i>Invested (cost)</span></div>`;
+}
+function perfSelect(sym){
+  perfSel=sym;perfPillsKey='';perfBodyKey='';
+  renderPerf();
+}
+function perfStat(v,l,cls){return `<div class="perf-stat"><div class="v ${cls||''}">${v}</div><div class="l">${l}</div></div>`;}
+function renderPerf(){
+  const hs=stockPositions();
+  const pills=document.getElementById('perf-pills');
+  const stats=document.getElementById('perf-stats');
+  const body=document.getElementById('perf-body');
+  const note=document.getElementById('perf-note');
+  if(!hs.length){
+    pills.innerHTML='';stats.innerHTML='';perfPillsKey='';perfBodyKey='';
+    body.innerHTML='<div class="empty"><b>No chart yet.</b><br>Log a stock purchase and your portfolio chart appears here.</div>';
+    note.textContent='';
+    return;
+  }
+  if(perfSel!=='ALL'&&!hs.some(h=>h.sym===perfSel))perfSel='ALL';
+  const key=hs.map(h=>h.sym).join(',')+'|'+perfSel;
+  if(key!==perfPillsKey){
+    perfPillsKey=key;
+    pills.innerHTML=['ALL',...hs.map(h=>h.sym)].map(s=>
+      `<button class="seg-btn${s===perfSel?' on':''}" aria-pressed="${s===perfSel}" onclick="perfSelect('${s}')">${s==='ALL'?'Portfolio':s}</button>`
+    ).join('');
+  }
+  if(perfSel==='ALL'){
+    const mv=marketValue(),cost=stockRemCost(),gl=mv-cost,pct=cost?gl/cost*100:0,sign=gl>=0?'+':'−';
+    stats.innerHTML=perfStat(fmt0(cost),'Invested (cost)')+perfStat(fmt0(mv),'Market value')+
+      perfStat(sign+fmt0(Math.abs(gl))+' · '+sign+Math.abs(pct).toFixed(1)+'%','Gain / loss',gl>=0?'gain':'lossc');
+    body.innerHTML=portfolioChartSvg();
+    perfBodyKey='ALL';
+    const n=(S.valueHistory||[]).length;
+    note.textContent=n<2
+      ?'The market-value line builds up each day you open the app (so far '+n+' day recorded). Cost line comes from your purchases and sales.'
+      :'Market value is recorded once a day when you open the app. Cost comes from your purchases and sales.';
+  }else{
+    const h=hs.find(x=>x.sym===perfSel),cp=S.prices[h.sym];
+    const gl=cp!=null?(cp-h.avg)/h.avg*100:null;
+    stats.innerHTML=perfStat(fmt(h.avg),'Your avg cost')+perfStat(cp!=null?fmt(cp):'—','Current price')+
+      perfStat(gl!=null?((gl>=0?'+':'−')+Math.abs(gl).toFixed(1)+'%'):'—','vs your cost',gl==null?'':(gl>=0?'gain':'lossc'));
+    if(perfBodyKey!=='T:'+h.sym){
+      perfBodyKey='T:'+h.sym;
+      body.innerHTML=`<iframe src="https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(h.sym)}&interval=D&theme=light&style=1&hidesidetoolbar=1&symboledit=0&saveimage=0&hidevolume=1&locale=en" loading="lazy" title="${h.sym} live chart"></iframe>`;
+    }
+    note.textContent='Live market chart from TradingView. You hold '+h.qty.toLocaleString('en-US',{maximumFractionDigits:6})+' shares.';
+  }
+}
+
 function plText(mv,cost,realized){
   const parts=[];
   if(cost>0){
@@ -1686,6 +1837,7 @@ function renderAll(){
   renderPriceNotes();renderCashUI();
   renderGoal();renderApy();renderStreak();renderDepositHistory();
   renderOverview();renderChrome();
+  recordSnapshot();renderPerf();
 }
 /* Close a "Log …" panel after a successful save: the handlers reset the form,
    so an emptied first required field means the entry went through. */
