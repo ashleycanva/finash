@@ -1787,7 +1787,7 @@ function renderPerf(){
   if(perfSel==='ALL'){
     const mv=marketValue(),cost=stockRemCost(),gl=mv-cost,pct=cost?gl/cost*100:0,sign=gl>=0?'+':'−';
     stats.innerHTML=perfStat(fmt0(cost),'Invested (cost)')+perfStat(fmt0(mv),'Market value')+
-      perfStat(sign+fmt0(Math.abs(gl))+' · '+sign+Math.abs(pct).toFixed(1)+'%','Gain / loss',gl>=0?'gain':'lossc');
+      perfStat(sign+fmt0(Math.abs(gl)),'Gain / loss ('+sign+Math.abs(pct).toFixed(1)+'%)',gl>=0?'gain':'lossc');
     body.innerHTML=portfolioChartSvg();
     perfBodyKey='ALL';
     const n=(S.valueHistory||[]).length;
