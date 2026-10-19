@@ -88,8 +88,90 @@ nav button{
   display:flex;flex-direction:column;align-items:center;gap:4px;
 }
 nav button svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-nav button.active{color:var(--gold)}
+nav button{position:relative}
+nav button.active{color:#fff}
+nav button[data-view=stocks].active{color:#8fd1b8}
+nav button[data-view=crypto].active{color:#b9acdf}
+nav button[data-view=savings].active{color:var(--gold)}
+nav button.active::before{
+  content:"";position:absolute;top:0;left:22%;right:22%;height:3px;
+  border-radius:0 0 3px 3px;background:currentColor;
+}
 nav button:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+
+/* ---------- section identity ----------
+   Each tab owns one color: Overview ink, Stocks teal, Crypto violet, Savings gold.
+   --fill = solid surfaces, --on-fill = text on them,
+   --accent-soft = tinted backgrounds, --accent-ink = readable colored text. */
+body{--fill:var(--ink);--on-fill:#fff;--accent-soft:#ececf0;--accent-ink:var(--ink-soft)}
+body[data-view=stocks]{--fill:var(--teal-deep);--on-fill:#fff;--accent-soft:var(--teal-tint);--accent-ink:var(--teal-deep)}
+body[data-view=crypto]{--fill:var(--violet-deep);--on-fill:#fff;--accent-soft:#eeeaf7;--accent-ink:var(--violet-deep)}
+body[data-view=savings]{--fill:var(--gold);--on-fill:var(--ink);--accent-soft:var(--gold-tint);--accent-ink:#7d6a0c}
+
+.banner{
+  background:var(--fill);color:var(--on-fill);
+  border-radius:var(--radius);padding:20px 18px;margin-bottom:18px;
+}
+.banner .b-eyebrow{
+  font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;
+  opacity:.85;margin-bottom:6px;
+}
+.banner .b-big{
+  font-family:var(--mono);font-weight:600;font-size:2.1rem;letter-spacing:-.01em;
+  font-variant-numeric:tabular-nums;line-height:1.1;
+}
+.banner .b-sub{font-size:.85rem;margin-top:8px;opacity:.95;line-height:1.4}
+
+.sec-label{
+  display:flex;align-items:center;gap:8px;margin:26px 2px 10px;
+  font-family:var(--mono);font-size:.72rem;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink);
+}
+.sec-label::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--fill)}
+.sec-label .count{
+  background:var(--accent-soft);color:var(--accent-ink);
+  border-radius:999px;padding:1px 9px;font-size:.68rem;letter-spacing:0;
+}
+.sec-label .aside{margin-left:auto;font-weight:500;letter-spacing:0;text-transform:none;color:var(--ink-faint)}
+.sec-label:first-child{margin-top:4px}
+
+.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.toolbar .btn{flex:1;font-size:.8rem;padding:9px 12px;background:var(--card)}
+
+details.add-panel{margin-bottom:10px}
+details.add-panel>summary{
+  list-style:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--fill);color:var(--on-fill);
+  font-weight:600;font-size:.95rem;padding:14px;border-radius:12px;
+}
+details.add-panel>summary::-webkit-details-marker{display:none}
+details.add-panel>summary .plus{font-size:1.35rem;line-height:1;font-weight:500;transition:transform .2s}
+details.add-panel[open]>summary{border-bottom-left-radius:0;border-bottom-right-radius:0}
+details.add-panel[open]>summary .plus{transform:rotate(45deg)}
+details.add-panel>summary:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+details.add-panel>.panel-body{
+  background:var(--card);border:1px solid var(--line);border-top:none;
+  border-radius:0 0 12px 12px;padding:16px;
+}
+details.add-panel.minus>summary{background:var(--card);color:var(--loss);border:1.5px solid var(--loss)}
+details.add-panel.minus[open]>summary{border-bottom-color:var(--line)}
+
+details.fold{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:12px}
+details.fold>summary{
+  list-style:none;cursor:pointer;padding:14px 16px;
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  font-weight:600;font-size:.9rem;
+}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:"▾";color:var(--ink-faint);transition:transform .2s}
+details.fold[open]>summary::after{transform:rotate(180deg)}
+details.fold>summary:focus-visible{outline:2px solid var(--accent-ink);outline-offset:-2px;border-radius:12px}
+details.fold>.fold-body{padding:0 16px 14px}
+details.fold .count{
+  margin-left:6px;background:var(--accent-soft);color:var(--accent-ink);
+  border-radius:999px;padding:1px 9px;font-size:.7rem;font-family:var(--mono);
+}
 
 /* ---------- layout ---------- */
 main{max-width:640px;margin:0 auto;padding:20px 16px 24px}
@@ -173,14 +255,14 @@ input,select{
   background:#fff;
   color:var(--ink);
 }
-input:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:var(--teal)}
+input:focus{outline:2px solid var(--accent-ink);outline-offset:-1px;border-color:var(--accent-ink)}
 .field-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .mode-toggle{
   background:none;border:none;padding:0 0 4px;
-  font-size:.72rem;font-weight:600;color:var(--teal-deep);
+  font-size:.72rem;font-weight:600;color:var(--accent-ink);
   text-decoration:underline;text-underline-offset:2px;
 }
-.mode-toggle:focus-visible{outline:2px solid var(--teal-deep);outline-offset:2px}
+.mode-toggle:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
 .mode-hint{
   font-size:.78rem;color:var(--ink-faint);font-family:var(--mono);
   margin:-2px 0 10px;
@@ -191,35 +273,65 @@ input:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:var(-
   padding:11px 18px;
   font-weight:600;font-size:.9rem;
 }
-.btn-primary{background:var(--ink);color:#fff;width:100%}
+.btn-primary{background:var(--fill);color:var(--on-fill);width:100%}
 .btn-primary:active{transform:scale(.99)}
 .btn-ghost{background:none;border:1px solid var(--line);color:var(--ink-soft)}
 .btn:focus-visible{outline:2px solid var(--teal-deep);outline-offset:2px}
 
 /* ---------- tables / lists ---------- */
-.holding{
-  border:1px solid var(--line);border-radius:12px;
-  padding:12px 14px;margin-bottom:10px;background:#fff;
-}
-.holding-top{display:flex;justify-content:space-between;align-items:baseline}
-.holding .tkr{font-family:var(--mono);font-weight:600;font-size:1rem}
-.holding .shares{font-size:.78rem;color:var(--ink-faint)}
-.holding-mid{display:flex;justify-content:space-between;margin-top:8px;font-size:.85rem}
-.holding-mid .m{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .gain{color:var(--teal-deep);font-weight:600}
 .lossc{color:var(--loss);font-weight:600}
-.price-edit{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
-.price-edit input{max-width:118px;padding:7px 10px;font-size:14px;font-family:var(--mono)}
-.price-edit button{padding:7px 12px;font-size:.78rem}
-.target-line{font-size:.78rem;font-family:var(--mono);color:var(--ink-faint);margin-top:8px}
-.target-line.hit{color:var(--teal-deep);font-weight:600}
-.hold-actions{display:flex;gap:8px;margin-top:10px}
-.hold-actions .btn{padding:7px 12px;font-size:.78rem}
-.sell-row{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
-.sell-row[hidden]{display:none}
-.sell-row input{max-width:108px;padding:7px 10px;font-size:14px;font-family:var(--mono)}
-.sell-row input[type=date]{max-width:150px;font-family:var(--body)}
-.sell-row button{padding:7px 12px;font-size:.78rem}
+
+/* holding card */
+.holding{
+  background:var(--card);border:1px solid var(--line);border-left:5px solid var(--fill);
+  border-radius:12px;padding:14px;margin-bottom:12px;
+  box-shadow:0 1px 2px rgba(25,25,35,.05);
+}
+.h-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.h-id .tkr{display:block;font-family:var(--mono);font-weight:700;font-size:1.15rem}
+.h-sub{font-size:.76rem;color:var(--ink-faint)}
+.h-val{text-align:right}
+.h-valnum{display:block;font-family:var(--mono);font-weight:600;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.pill{
+  display:inline-block;margin-top:4px;padding:2px 9px;border-radius:999px;
+  font-family:var(--mono);font-weight:600;font-size:.74rem;font-variant-numeric:tabular-nums;
+  background:#ececf0;color:var(--ink-soft);
+}
+.pill.up{background:var(--teal-tint);color:var(--teal-deep)}
+.pill.down{background:var(--loss-tint);color:var(--loss)}
+.h-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:.76rem;color:var(--ink-faint);margin-top:8px}
+.h-meta b{font-family:var(--mono);color:var(--ink-soft);font-weight:600}
+.tgt{margin-top:10px;padding:9px 10px;border-radius:10px;background:var(--accent-soft)}
+.tgt-top{display:flex;justify-content:space-between;gap:8px;font-size:.78rem;font-weight:600;color:var(--ink-soft)}
+.tgt-bar{height:6px;border-radius:3px;background:rgba(25,25,35,.09);margin-top:6px;overflow:hidden}
+.tgt-bar i{display:block;height:100%;background:var(--fill);border-radius:3px}
+.tgt.hit{background:var(--teal-tint)}
+.tgt.hit .tgt-top{color:var(--teal-deep)}
+.tgt.hit .tgt-bar i{background:var(--teal-deep)}
+.h-prices{
+  display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;
+  margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);
+}
+.h-prices input,.sp-grid input{padding:8px 10px;font-size:15px;font-family:var(--mono)}
+.h-prices label,.sp-grid label{margin-bottom:3px}
+.h-prices .btn{padding:9px 14px;font-size:.82rem}
+.h-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.act{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:10px;border-radius:10px;border:1px solid var(--line);
+  background:var(--paper);color:var(--ink);font-weight:600;font-size:.85rem;
+}
+.act.sell{color:var(--loss);border-color:#e8c7c3;background:var(--loss-tint)}
+.act:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+.sell-panel{margin-top:10px;padding:12px;border-radius:10px;background:var(--loss-tint);border:1px solid #efd3cf}
+.sell-panel[hidden]{display:none}
+.sp-title{font-weight:700;font-size:.85rem;color:var(--loss);margin-bottom:10px}
+.sp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.sp-grid .wide{grid-column:1/-1}
+.sp-grid input[type=date]{font-family:var(--body)}
+.btn-soft{background:var(--accent-soft);color:var(--accent-ink);border:none}
+.btn-danger{background:var(--loss);color:#fff;width:100%}
 .chart-embed{margin-top:10px}
 .chart-embed iframe{width:100%;height:320px;border:0;border-radius:10px;background:#fff}
 .realized-line{font-size:.8rem;font-family:var(--mono);margin-top:4px;color:var(--ink-soft)}
@@ -248,6 +360,13 @@ input:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:var(-
   font-size:1rem;padding:4px 6px;margin-left:8px;line-height:1;
 }
 .tx .del:hover{color:var(--loss)}
+
+#alloc:not(:empty),#crypto-alloc:not(:empty){
+  background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:14px 14px 0;margin-bottom:12px;
+}
+#alloc .alloc-bar,#crypto-alloc .alloc-bar{margin-bottom:10px}
+details.add-panel.minus .plus{transform:none!important}
 
 /* ---------- allocation bar ---------- */
 .alloc-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--line);margin-bottom:10px}
@@ -329,7 +448,7 @@ details.settings form{margin-top:12px}
 }
 </style>
 </head>
-<body>
+<body data-view="overview">
 
 <header>
   <div class="brand">
@@ -364,32 +483,42 @@ details.settings form{margin-top:12px}
     <div class="stat"><div class="val" id="ov-pace">—</div><div class="lbl">Months to savings goal at current pace</div></div>
   </div>
 
+  <div class="sec-label">Growth</div>
   <div class="card chart-wrap">
-    <h2>Growth over time</h2>
     <div id="ov-chart"></div>
     <div class="chart-note">Cumulative contributions: stock &amp; crypto purchases at cost + savings deposits.</div>
   </div>
 
-  <div class="card">
-    <h2>Backup</h2>
-    <div class="actions">
-      <button class="btn btn-ghost" id="btn-export-csv">Export CSV</button>
-      <button class="btn btn-ghost" id="btn-export-json">Backup JSON</button>
-      <button class="btn btn-ghost" id="btn-import-json">Restore</button>
+  <div class="sec-label">Data &amp; security</div>
+  <details class="fold">
+    <summary>Backup &amp; export</summary>
+    <div class="fold-body">
+      <div class="actions">
+        <button class="btn btn-ghost" id="btn-export-csv">Export CSV</button>
+        <button class="btn btn-ghost" id="btn-export-json">Backup JSON</button>
+        <button class="btn btn-ghost" id="btn-import-json">Restore</button>
+      </div>
+      <input type="file" id="import-file" accept="application/json" hidden>
     </div>
-    <input type="file" id="import-file" accept="application/json" hidden>
-  </div>
+  </details>
 
-  <div class="card">
-    <h2>App lock</h2>
-    <div id="lock-card"></div>
-  </div>
+  <details class="fold">
+    <summary>App lock</summary>
+    <div class="fold-body"><div id="lock-card"></div></div>
+  </details>
 </section>
 
 <!-- ============ STOCKS ============ -->
 <section class="view" id="view-stocks">
-  <div class="card">
-    <h2>Log a purchase</h2>
+  <div class="banner">
+    <div class="b-eyebrow">Stocks · current value</div>
+    <div class="b-big" id="ban-stock-val">$0.00</div>
+    <div class="b-sub" id="ban-stock-sub">No holdings yet</div>
+  </div>
+
+  <details class="add-panel" id="add-stock">
+    <summary><span class="plus">+</span> Log a purchase</summary>
+    <div class="panel-body">
     <form id="form-stock">
       <div class="row">
         <div><label for="s-ticker">Ticker</label><input id="s-ticker" placeholder="VOO" required maxlength="8" autocapitalize="characters" autocomplete="off"></div>
@@ -409,37 +538,46 @@ details.settings form{margin-top:12px}
       <label class="cash-check" id="s-cash-wrap"><input type="checkbox" id="s-cash"> Paid from cash balance (<b id="s-cash-avail">$0</b>)</label>
       <button class="btn btn-primary" type="submit">Add purchase</button>
     </form>
-  </div>
-
-  <div class="card">
-    <h2>Holdings</h2>
-    <div class="refresh-row">
-      <button class="btn btn-ghost" id="btn-refresh-stocks">↻ Refresh live prices</button>
-      <button class="btn btn-ghost" id="btn-alerts-stocks">🔔 Enable alerts</button>
-      <span class="price-note" id="stock-price-note"></span>
     </div>
-    <div id="alloc"></div>
-    <div id="holdings"></div>
-    <details class="settings" style="margin-top:10px">
-      <summary>Live price setup</summary>
+  </details>
+
+  <div class="sec-label">Holdings <span class="count" id="stock-count">0</span><span class="aside price-note" id="stock-price-note"></span></div>
+  <div class="toolbar">
+    <button class="btn btn-ghost" id="btn-refresh-stocks">↻ Refresh prices</button>
+    <button class="btn btn-ghost" id="btn-alerts-stocks">🔔 Enable alerts</button>
+  </div>
+  <div id="alloc"></div>
+  <div id="holdings"></div>
+
+  <details class="fold">
+    <summary>Live price setup</summary>
+    <div class="fold-body">
       <p class="hint">Stock quotes come from Finnhub. Create a free account at <a href="https://finnhub.io" target="_blank" rel="noopener">finnhub.io</a>, copy your API key, and paste it here. The key is stored only on this device.</p>
       <form id="form-finnhub">
         <div class="row single"><div><label for="fh-key">Finnhub API key</label><input id="fh-key" autocomplete="off" placeholder="paste your key"></div></div>
         <button class="btn btn-primary" type="submit">Save key</button>
       </form>
-    </details>
-  </div>
+    </div>
+  </details>
 
-  <div class="card">
-    <h2>Purchase history</h2>
-    <div id="stock-history"></div>
-  </div>
+  <div class="sec-label">History</div>
+  <details class="fold">
+    <summary><span>Purchases &amp; sales <span class="count" id="stock-hist-count">0</span></span></summary>
+    <div class="fold-body"><div id="stock-history"></div></div>
+  </details>
 </section>
 
 <!-- ============ CRYPTO ============ -->
 <section class="view" id="view-crypto">
-  <div class="card">
-    <h2>Log a crypto buy</h2>
+  <div class="banner">
+    <div class="b-eyebrow">Crypto · current value</div>
+    <div class="b-big" id="ban-crypto-val">$0.00</div>
+    <div class="b-sub" id="ban-crypto-sub">No holdings yet</div>
+  </div>
+
+  <details class="add-panel" id="add-crypto">
+    <summary><span class="plus">+</span> Log a crypto buy</summary>
+    <div class="panel-body">
     <form id="form-crypto">
       <div class="row">
         <div><label for="c-symbol">Coin</label><input id="c-symbol" placeholder="BTC" required maxlength="10" autocapitalize="characters" autocomplete="off"></div>
@@ -459,27 +597,33 @@ details.settings form{margin-top:12px}
       <label class="cash-check" id="c-cash-wrap"><input type="checkbox" id="c-cash"> Paid from cash balance (<b id="c-cash-avail">$0</b>)</label>
       <button class="btn btn-primary" type="submit">Add buy</button>
     </form>
-  </div>
-
-  <div class="card">
-    <h2>Holdings</h2>
-    <div class="refresh-row">
-      <button class="btn btn-ghost" id="btn-refresh-crypto">↻ Refresh live prices</button>
-      <button class="btn btn-ghost" id="btn-alerts-crypto">🔔 Enable alerts</button>
-      <span class="price-note" id="crypto-price-note"></span>
     </div>
-    <div id="crypto-alloc"></div>
-    <div id="crypto-holdings"></div>
-  </div>
+  </details>
 
-  <div class="card">
-    <h2>Buy history</h2>
-    <div id="crypto-history"></div>
+  <div class="sec-label">Holdings <span class="count" id="crypto-count">0</span><span class="aside price-note" id="crypto-price-note"></span></div>
+  <div class="toolbar">
+    <button class="btn btn-ghost" id="btn-refresh-crypto">↻ Refresh prices</button>
+    <button class="btn btn-ghost" id="btn-alerts-crypto">🔔 Enable alerts</button>
   </div>
+  <div id="crypto-alloc"></div>
+  <div id="crypto-holdings"></div>
+
+  <div class="sec-label">History</div>
+  <details class="fold">
+    <summary><span>Buys &amp; sales <span class="count" id="crypto-hist-count">0</span></span></summary>
+    <div class="fold-body"><div id="crypto-history"></div></div>
+  </details>
 </section>
 
 <!-- ============ SAVINGS ============ -->
 <section class="view" id="view-savings">
+  <div class="banner">
+    <div class="b-eyebrow">Savings · balance</div>
+    <div class="b-big" id="ban-save-val">$0.00</div>
+    <div class="b-sub" id="ban-save-sub"></div>
+  </div>
+
+  <div class="sec-label">Goal</div>
   <div class="card">
     <div class="goal-head">
       <h2 style="margin:0" id="goal-title">Savings goal</h2>
@@ -506,6 +650,7 @@ details.settings form{margin-top:12px}
     </details>
   </div>
 
+  <div class="sec-label">Interest</div>
   <div class="card">
     <div class="goal-head">
       <h2 style="margin:0">Interest (APY)</h2>
@@ -532,8 +677,10 @@ details.settings form{margin-top:12px}
     </details>
   </div>
 
-  <div class="card">
-    <h2>Log a deposit</h2>
+  <div class="sec-label">Move money</div>
+  <details class="add-panel" id="add-deposit">
+    <summary><span class="plus">+</span> Log a deposit</summary>
+    <div class="panel-body">
     <form id="form-deposit">
       <div class="row">
         <div><label for="d-amount">Amount ($)</label><input id="d-amount" type="number" step="any" min="0.01" placeholder="500" required inputmode="decimal"></div>
@@ -542,30 +689,34 @@ details.settings form{margin-top:12px}
       <label class="cash-check" id="d-cash-wrap"><input type="checkbox" id="d-cash"> Moved from cash balance (<b id="d-cash-avail">$0</b>)</label>
       <button class="btn btn-primary" type="submit">Add deposit</button>
     </form>
-  </div>
+    </div>
+  </details>
 
-  <div class="card">
-    <h2>Log a withdrawal</h2>
+  <details class="add-panel minus" id="add-withdraw">
+    <summary><span class="plus">−</span> Log a withdrawal</summary>
+    <div class="panel-body">
     <form id="form-withdraw">
       <div class="row">
         <div><label for="w-amount">Amount ($)</label><input id="w-amount" type="number" step="any" min="0.01" placeholder="200" required inputmode="decimal"></div>
         <div><label for="w-date">Date</label><input id="w-date" type="date" required></div>
       </div>
       <label class="cash-check"><input type="checkbox" id="w-cash"> Send to cash balance (to invest) — available: <b id="w-avail">$0</b></label>
-      <button class="btn btn-primary" type="submit">Add withdrawal</button>
+      <button class="btn btn-danger" type="submit">Add withdrawal</button>
     </form>
-  </div>
+    </div>
+  </details>
 
+  <div class="sec-label">Consistency</div>
   <div class="card">
-    <h2>Monthly consistency</h2>
     <div class="streak" id="streak"></div>
     <div class="streak-note" id="streak-note">Each coin is a month. Gold = hit your monthly target.</div>
   </div>
 
-  <div class="card">
-    <h2>Savings history</h2>
-    <div id="deposit-history"></div>
-  </div>
+  <div class="sec-label">History</div>
+  <details class="fold">
+    <summary><span>Deposits &amp; withdrawals <span class="count" id="save-hist-count">0</span></span></summary>
+    <div class="fold-body"><div id="deposit-history"></div></div>
+  </details>
 </section>
 
 </main>
@@ -705,6 +856,7 @@ document.querySelectorAll('nav button').forEach(b=>{
     document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
     document.getElementById('view-'+b.dataset.view).classList.add('active');
+    document.body.dataset.view=b.dataset.view;
     window.scrollTo({top:0});
   });
 });
@@ -778,46 +930,49 @@ function holdingCard(kind,p){
   const cp=prices[p.sym];
   const qtyStr=p.qty.toLocaleString('en-US',{maximumFractionDigits:8});
   const unitLbl=kind==='stock'?' sh':'';
-  let glHtml='<span style="color:var(--ink-faint);font-size:.8rem">set current price ↓</span>';
+  let pillHtml='<span class="pill">no live price</span>';
   let mv=p.remCost;
   if(cp!=null){
     mv=p.qty*cp;
     const gl=mv-p.remCost;
     const pct=p.remCost?(gl/p.remCost*100):0;
-    const cls=gl>=0?'gain':'lossc';
     const sign=gl>=0?'+':'−';
-    glHtml=`<span class="${cls}">${sign}${fmt(Math.abs(gl))} (${sign}${Math.abs(pct).toFixed(1)}%)</span>`;
+    pillHtml=`<span class="pill ${gl>=0?'up':'down'}">${sign}${fmt(Math.abs(gl))} · ${sign}${Math.abs(pct).toFixed(1)}%</span>`;
   }
   const saveFn=kind==='stock'?'savePrices':'saveCryptoPrices';
   const cpId=(kind==='stock'?'cp-':'ccp-')+p.sym;
   const tpId=(kind==='stock'?'tp-':'ctp-')+p.sym;
+  const qtyLbl=kind==='stock'?'Shares':'Quantity';
   return `<div class="holding">
-    <div class="holding-top">
-      <span class="tkr">${p.sym}</span>
-      <span class="shares">${qtyStr}${unitLbl} · avg ${fmt(p.avg)}</span>
+    <div class="h-top">
+      <div class="h-id"><span class="tkr">${p.sym}</span><span class="h-sub">${qtyStr}${unitLbl} · avg ${fmt(p.avg)}</span></div>
+      <div class="h-val"><span class="h-valnum">${fmt(mv)}</span>${pillHtml}</div>
     </div>
-    <div class="holding-mid">
-      <span>Cost <span class="m">${fmt(p.remCost)}</span></span>
-      <span>Value <span class="m">${fmt(mv)}</span></span>
+    <div class="h-meta">
+      <span>Cost <b>${fmt(p.remCost)}</b></span>
+      ${p.realized?`<span>Realized <b class="${p.realized>=0?'gain':'lossc'}">${p.realized>=0?'+':'−'}${fmt(Math.abs(p.realized))}</b></span>`:''}
     </div>
-    <div class="holding-mid" style="justify-content:flex-end">${glHtml}</div>
-    ${p.realized?`<div class="realized-line">Realized so far: <span class="${p.realized>=0?'gain':'lossc'}">${p.realized>=0?'+':'−'}${fmt(Math.abs(p.realized))}</span></div>`:''}
     ${targetLine(targets[p.sym],cp)}
-    <div class="price-edit">
-      <input type="number" step="any" min="0" inputmode="decimal" placeholder="current $" value="${cp!=null?cp:''}" id="${cpId}" aria-label="Current price for ${p.sym}">
-      <input type="number" step="any" min="0" inputmode="decimal" placeholder="sell target $" value="${targets[p.sym]!=null?targets[p.sym]:''}" id="${tpId}" aria-label="Sell target for ${p.sym}">
-      <button class="btn btn-ghost" onclick="${saveFn}('${p.sym}')">Save</button>
+    <div class="h-prices">
+      <div class="h-cell"><label for="${cpId}">Current price ($)</label><input type="number" step="any" min="0" inputmode="decimal" placeholder="0.00" value="${cp!=null?cp:''}" id="${cpId}"></div>
+      <div class="h-cell"><label for="${tpId}">Sell target ($)</label><input type="number" step="any" min="0" inputmode="decimal" placeholder="optional" value="${targets[p.sym]!=null?targets[p.sym]:''}" id="${tpId}"></div>
+      <button class="btn btn-soft" onclick="${saveFn}('${p.sym}')">Save</button>
     </div>
-    <div class="hold-actions">
-      <button class="btn btn-ghost" onclick="toggleChart('${kind}','${p.sym}')">📈 Chart</button>
-      <button class="btn btn-ghost" onclick="toggleSellForm('${kind}','${p.sym}')">Sell…</button>
+    <div class="h-actions">
+      <button class="act" onclick="toggleChart('${kind}','${p.sym}')">📈 Live chart</button>
+      <button class="act sell" onclick="toggleSellForm('${kind}','${p.sym}')">Sell ${p.sym}</button>
     </div>
-    <div class="sell-row" id="sf-${kind}-${p.sym}" hidden>
-      <input type="number" step="any" min="0" inputmode="decimal" placeholder="qty (max ${qtyStr})" id="sq-${kind}-${p.sym}" aria-label="Quantity sold of ${p.sym}">
-      <button class="btn btn-ghost" type="button" onclick="sellAllQty('${kind}','${p.sym}')">All</button>
-      <input type="number" step="any" min="0" inputmode="decimal" placeholder="sold @ $" id="sp-${kind}-${p.sym}" aria-label="Sale price for ${p.sym}">
-      <input type="date" id="sd-${kind}-${p.sym}" aria-label="Sale date for ${p.sym}">
-      <button class="btn btn-ghost" onclick="recordSale('${kind}','${p.sym}')">Record sale</button>
+    <div class="sell-panel" id="sf-${kind}-${p.sym}" hidden>
+      <div class="sp-title">Sell ${p.sym} · you hold ${qtyStr}</div>
+      <div class="sp-grid">
+        <div class="wide">
+          <div class="field-head"><label for="sq-${kind}-${p.sym}">${qtyLbl} to sell</label><button type="button" class="mode-toggle" onclick="sellAllQty('${kind}','${p.sym}')">Sell all</button></div>
+          <input type="number" step="any" min="0" inputmode="decimal" placeholder="0" id="sq-${kind}-${p.sym}">
+        </div>
+        <div><label for="sp-${kind}-${p.sym}">Sale price ($ each)</label><input type="number" step="any" min="0" inputmode="decimal" placeholder="0.00" id="sp-${kind}-${p.sym}"></div>
+        <div><label for="sd-${kind}-${p.sym}">Date</label><input type="date" id="sd-${kind}-${p.sym}"></div>
+      </div>
+      <button class="btn btn-danger" onclick="recordSale('${kind}','${p.sym}')">Record sale</button>
     </div>
     <div class="chart-embed" id="ch-${kind}-${p.sym}" hidden></div>
   </div>`;
@@ -843,9 +998,12 @@ function renderHoldings(){
 }
 function targetLine(tp,cp){
   if(!(tp>0))return'';
-  if(cp!=null&&cp>=tp)return`<div class="target-line hit">🎯 Sell target ${fmt(tp)} hit — now ${fmt(cp)}</div>`;
-  if(cp!=null)return`<div class="target-line">Sell target ${fmt(tp)} · ${(cp/tp*100).toFixed(0)}% there</div>`;
-  return`<div class="target-line">Sell target ${fmt(tp)}</div>`;
+  if(cp!=null&&cp>=tp)return`<div class="tgt hit"><div class="tgt-top"><span>🎯 Target ${fmt(tp)} reached</span><span>now ${fmt(cp)}</span></div><div class="tgt-bar"><i style="width:100%"></i></div></div>`;
+  if(cp!=null){
+    const pct=Math.max(0,Math.min(100,cp/tp*100));
+    return`<div class="tgt"><div class="tgt-top"><span>🎯 Sell target ${fmt(tp)}</span><span>${pct.toFixed(0)}% there</span></div><div class="tgt-bar"><i style="width:${pct.toFixed(1)}%"></i></div></div>`;
+  }
+  return`<div class="tgt"><div class="tgt-top"><span>🎯 Sell target ${fmt(tp)}</span></div></div>`;
 }
 function savePrices(t){
   const cpv=document.getElementById('cp-'+t).value.trim();
@@ -1498,13 +1656,45 @@ document.getElementById('import-file').addEventListener('change',e=>{
 });
 
 /* =============== render =============== */
+function plText(mv,cost,realized){
+  const parts=[];
+  if(cost>0){
+    const gl=mv-cost,sign=gl>=0?'+':'−';
+    parts.push(sign+fmt(Math.abs(gl))+' ('+sign+Math.abs(gl/cost*100).toFixed(1)+'%) unrealized');
+  }
+  if(realized)parts.push((realized>=0?'+':'−')+fmt(Math.abs(realized))+' realized');
+  return parts.length?parts.join(' · '):'No holdings yet';
+}
+function renderChrome(){
+  const set=(id,t)=>{document.getElementById(id).textContent=t;};
+  set('ban-stock-val',fmt(marketValue()));
+  set('ban-stock-sub',plText(marketValue(),stockRemCost(),realizedTotal('stock')));
+  set('ban-crypto-val',fmt(cryptoMarketValue()));
+  set('ban-crypto-sub',plText(cryptoMarketValue(),cryptoRemCost(),realizedTotal('crypto')));
+  const bal=totalSaved(),apy=apyRate(),r=Math.pow(1+apy,1/12)-1;
+  set('ban-save-val',fmt(bal));
+  set('ban-save-sub',(apy*100).toLocaleString('en-US',{maximumFractionDigits:3})+'% APY · ≈ '+fmt(bal*r)+' interest / month');
+  set('stock-count',stockPositions().length);
+  set('crypto-count',cryptoPositions().length);
+  set('stock-hist-count',S.stocks.length+S.sales.filter(s=>s.kind==='stock').length);
+  set('crypto-hist-count',S.crypto.length+S.sales.filter(s=>s.kind==='crypto').length);
+  set('save-hist-count',S.deposits.length+S.withdrawals.length);
+}
 function renderAll(){
   renderHoldings();renderStockHistory();
   renderCryptoHoldings();renderCryptoHistory();
   renderPriceNotes();renderCashUI();
   renderGoal();renderApy();renderStreak();renderDepositHistory();
-  renderOverview();
+  renderOverview();renderChrome();
 }
+/* Close a "Log …" panel after a successful save: the handlers reset the form,
+   so an emptied first required field means the entry went through. */
+document.querySelectorAll('details.add-panel form').forEach(f=>{
+  f.addEventListener('submit',()=>setTimeout(()=>{
+    const first=f.querySelector('input[required]');
+    if(first&&!first.value)f.closest('details').open=false;
+  },50));
+});
 hydrateGoalForm();
 renderAll();
 checkTargetHits();
