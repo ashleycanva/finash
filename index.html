@@ -507,6 +507,27 @@ details.settings form{margin-top:12px}
   </div>
 
   <div class="card">
+    <div class="goal-head">
+      <h2 style="margin:0">Interest (APY)</h2>
+      <span class="pct" id="apy-pct">4.15%</span>
+    </div>
+    <div class="stat-row" style="margin:12px 0 0">
+      <div class="stat"><div class="val" id="apy-month">—</div><div class="lbl">Est. interest / month</div></div>
+      <div class="stat"><div class="val" id="apy-year">—</div><div class="lbl">Est. interest / year</div></div>
+      <div class="stat"><div class="val" id="apy-proj">—</div><div class="lbl" id="apy-proj-lbl">Balance in 12 months</div></div>
+      <div class="stat"><div class="val" id="apy-earned">—</div><div class="lbl">Earned so far (logged deposits)</div></div>
+    </div>
+    <div class="chart-note" id="apy-note"></div>
+    <details class="settings" style="margin-top:12px">
+      <summary>APY settings</summary>
+      <form id="form-apy">
+        <div class="row single"><div><label for="apy-input">APY (%)</label><input id="apy-input" type="number" step="any" min="0" max="100" placeholder="4.15" inputmode="decimal"></div></div>
+        <button class="btn btn-primary" type="submit">Save APY</button>
+      </form>
+    </details>
+  </div>
+
+  <div class="card">
     <h2>Log a deposit</h2>
     <form id="form-deposit">
       <div class="row">
@@ -583,10 +604,10 @@ function load(){
       sales:p.sales||[],
       pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
       deposits:p.deposits||[],
-      settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})
+      settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15},p.settings||{})
     });}
   }catch(e){}
-  return{stocks:[],prices:{},targets:{},alerted:{},crypto:[],cryptoPrices:{},cryptoTargets:{},cryptoAlerted:{},sales:[],pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''}};
+  return{stocks:[],prices:{},targets:{},alerted:{},crypto:[],cryptoPrices:{},cryptoTargets:{},cryptoAlerted:{},sales:[],pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15}};
 }
 function save(){localStorage.setItem(KEY,JSON.stringify(S));}
 const fmt=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1186,7 +1207,48 @@ document.getElementById('form-goal').addEventListener('submit',e=>{
   S.settings.startBalance=parseFloat(document.getElementById('g-start').value)||0;
   save();renderAll();toast('Goal saved');
 });
+document.getElementById('form-apy').addEventListener('submit',e=>{
+  e.preventDefault();
+  const v=parseFloat(document.getElementById('apy-input').value);
+  if(!(v>=0&&v<=100)){toast('Enter an APY between 0 and 100');return;}
+  S.settings.apy=v;
+  save();renderAll();toast('APY set to '+v+'%');
+});
+function apyRate(){
+  const a=parseFloat(S.settings.apy);
+  return (a>=0?a:4.15)/100;
+}
+function renderApy(){
+  const apy=apyRate();
+  const r=Math.pow(1+apy,1/12)-1;
+  const bal=totalSaved();
+  const monthly=S.settings.monthlyTarget||0;
+  let proj=bal;
+  for(let i=0;i<12;i++)proj=proj*(1+r)+monthly;
+  let earned=0;
+  const now=Date.now();
+  for(const d of S.deposits){
+    const days=(now-new Date(d.date).getTime())/86400000;
+    if(days>0)earned+=d.amount*(Math.pow(1+apy,days/365)-1);
+  }
+  const pctText=(apy*100).toLocaleString('en-US',{maximumFractionDigits:3})+'%';
+  document.getElementById('apy-pct').textContent=pctText;
+  document.getElementById('apy-month').textContent=fmt(bal*r);
+  document.getElementById('apy-year').textContent=fmt(bal*apy);
+  document.getElementById('apy-proj').textContent=fmt(proj);
+  document.getElementById('apy-proj-lbl').textContent=monthly>0?'Balance in 12 mo (with '+fmt0(monthly)+'/mo)':'Balance in 12 months';
+  document.getElementById('apy-earned').textContent=S.deposits.length?fmt(earned):'—';
+  let note='Estimates assume your savings earn '+pctText+' APY, compounded monthly, and that the rate stays constant. Actual bank interest varies.';
+  const goal=S.settings.goalAmount;
+  if(goal>0&&bal<goal&&(monthly>0||bal>0)){
+    let b=bal,n=0;
+    while(b<goal&&n<600){b=b*(1+r)+monthly;n++;}
+    if(n<600)note='At '+pctText+' APY you\'d reach your '+fmt0(goal)+' goal in about '+n+' month'+(n===1?'':'s')+(monthly>0?' saving '+fmt0(monthly)+'/mo':' from interest alone')+'. '+note;
+  }
+  document.getElementById('apy-note').textContent=note;
+}
 function hydrateGoalForm(){
+  document.getElementById('apy-input').value=S.settings.apy!=null?S.settings.apy:4.15;
   document.getElementById('g-amount').value=S.settings.goalAmount||'';
   document.getElementById('g-monthly').value=S.settings.monthlyTarget||'';
   document.getElementById('g-date').value=S.settings.goalDate||'';
@@ -1353,7 +1415,7 @@ document.getElementById('import-file').addEventListener('change',e=>{
          sales:p.sales||[],
          pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
          deposits:p.deposits,
-         settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:''},p.settings||{})});
+         settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15},p.settings||{})});
       save();hydrateGoalForm();
       document.getElementById('fh-key').value=S.settings.finnhubKey||'';
       renderAll();toast('Backup restored');
@@ -1368,7 +1430,7 @@ function renderAll(){
   renderHoldings();renderStockHistory();
   renderCryptoHoldings();renderCryptoHistory();
   renderPriceNotes();renderCashUI();
-  renderGoal();renderStreak();renderDepositHistory();
+  renderGoal();renderApy();renderStreak();renderDepositHistory();
   renderOverview();
 }
 hydrateGoalForm();
