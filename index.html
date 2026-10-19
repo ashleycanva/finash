@@ -1225,10 +1225,12 @@ function delSale(id){
   S.sales=S.sales.filter(x=>x.id!==id);
   save();renderAll();toast('Sale deleted');
 }
-/* TradingView's compact line-chart widget: price line only, no toolbars. */
+/* Simple price chart: TradingView's chart as a plain area line (no toolbars, legend or volume). */
 function miniChartHtml(tvSymbol,label){
-  const cfg={symbol:tvSymbol,width:'100%',height:'220',locale:'en',dateRange:'3M',colorTheme:'light',isTransparent:true,autosize:false,largeChartUrl:''};
-  return `<iframe src="https://s.tradingview.com/embed-widget/mini-chart/?locale=en#${encodeURIComponent(JSON.stringify(cfg))}" loading="lazy" title="${label} price chart"></iframe>`;
+  const q='symbol='+encodeURIComponent(tvSymbol)+'&interval=D&style=3&theme=light&locale=en&timezone=Etc%2FUTC'
+    +'&hide_top_toolbar=1&hide_side_toolbar=1&hide_legend=1&withdateranges=0&symboledit=0&saveimage=0&hideideas=1&studies=%5B%5D'
+    +'&disabled_features=%5B%22volume_force_overlay%22%2C%22create_volume_indicator_by_default%22%5D';
+  return `<iframe src="https://s.tradingview.com/widgetembed/?${q}" loading="lazy" title="${label} price chart"></iframe>`;
 }
 function toggleChart(kind,sym){
   const el=document.getElementById('ch-'+kind+'-'+sym);
@@ -1808,7 +1810,7 @@ function renderPerf(){
       perfBodyKey='T:'+h.sym;
       body.innerHTML=miniChartHtml(h.sym,h.sym);
     }
-    note.textContent='3-month price from TradingView. You hold '+h.qty.toLocaleString('en-US',{maximumFractionDigits:6})+' shares.';
+    note.textContent='Price chart from TradingView. You hold '+h.qty.toLocaleString('en-US',{maximumFractionDigits:6})+' shares.';
   }
 }
 
