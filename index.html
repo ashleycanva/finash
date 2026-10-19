@@ -333,7 +333,7 @@ input:focus{outline:2px solid var(--accent-ink);outline-offset:-1px;border-color
 .btn-soft{background:var(--accent-soft);color:var(--accent-ink);border:none}
 .btn-danger{background:var(--loss);color:#fff;width:100%}
 .chart-embed{margin-top:10px}
-.chart-embed iframe{width:100%;height:320px;border:0;border-radius:10px;background:#fff}
+.chart-embed iframe{width:100%;height:220px;border:0;border-radius:10px;background:#fff}
 .realized-line{font-size:.8rem;font-family:var(--mono);margin-top:4px;color:var(--ink-soft)}
 .amt.sale{color:var(--teal-deep)}
 .refresh-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
@@ -375,7 +375,7 @@ input:focus{outline:2px solid var(--accent-ink);outline-offset:-1px;border-color
 .perf-stat .v{font-family:var(--mono);font-weight:600;font-size:.95rem;font-variant-numeric:tabular-nums}
 .perf-stat .l{font-size:.7rem;color:var(--ink-soft);margin-top:1px}
 .perf-chart svg{width:100%;height:auto;display:block}
-.perf-chart iframe{width:100%;height:340px;border:0;border-radius:10px;background:#fff}
+.perf-chart iframe{width:100%;height:220px;border:0;border-radius:10px;background:#fff}
 .perf-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.74rem;color:var(--ink-soft);margin-top:8px}
 .perf-legend i{display:inline-block;width:16px;height:0;border-top:3px solid var(--teal-deep);vertical-align:middle;margin-right:5px}
 .perf-legend i.dash{border-top:2px dashed var(--ink-faint)}
@@ -987,7 +987,7 @@ function holdingCard(kind,p){
       <button class="btn btn-soft" onclick="${saveFn}('${p.sym}')">Save</button>
     </div>
     <div class="h-actions">
-      <button class="act" onclick="toggleChart('${kind}','${p.sym}')">📈 Live chart</button>
+      <button class="act" onclick="toggleChart('${kind}','${p.sym}')">📈 Price chart</button>
       <button class="act sell" onclick="toggleSellForm('${kind}','${p.sym}')">Sell ${p.sym}</button>
     </div>
     <div class="sell-panel" id="sf-${kind}-${p.sym}" hidden>
@@ -1225,11 +1225,16 @@ function delSale(id){
   S.sales=S.sales.filter(x=>x.id!==id);
   save();renderAll();toast('Sale deleted');
 }
+/* TradingView's compact line-chart widget: price line only, no toolbars. */
+function miniChartHtml(tvSymbol,label){
+  const cfg={symbol:tvSymbol,width:'100%',height:'220',locale:'en',dateRange:'3M',colorTheme:'light',isTransparent:true,autosize:false,largeChartUrl:''};
+  return `<iframe src="https://s.tradingview.com/embed-widget/mini-chart/?locale=en#${encodeURIComponent(JSON.stringify(cfg))}" loading="lazy" title="${label} price chart"></iframe>`;
+}
 function toggleChart(kind,sym){
   const el=document.getElementById('ch-'+kind+'-'+sym);
   if(!el.hidden){el.hidden=true;el.innerHTML='';return;}
   const tvSym=kind==='crypto'?('BINANCE:'+sym+'USDT'):sym;
-  el.innerHTML=`<iframe src="https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSym)}&interval=D&theme=light&style=1&hidesidetoolbar=1&symboledit=0&saveimage=0&hidevolume=1&locale=en" loading="lazy" title="${sym} live chart"></iframe>`;
+  el.innerHTML=miniChartHtml(tvSym,sym);
   el.hidden=false;
 }
 function renderCryptoHistory(){
@@ -1801,9 +1806,9 @@ function renderPerf(){
       perfStat(gl!=null?((gl>=0?'+':'−')+Math.abs(gl).toFixed(1)+'%'):'—','vs your cost',gl==null?'':(gl>=0?'gain':'lossc'));
     if(perfBodyKey!=='T:'+h.sym){
       perfBodyKey='T:'+h.sym;
-      body.innerHTML=`<iframe src="https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(h.sym)}&interval=D&theme=light&style=1&hidesidetoolbar=1&symboledit=0&saveimage=0&hidevolume=1&locale=en" loading="lazy" title="${h.sym} live chart"></iframe>`;
+      body.innerHTML=miniChartHtml(h.sym,h.sym);
     }
-    note.textContent='Live market chart from TradingView. You hold '+h.qty.toLocaleString('en-US',{maximumFractionDigits:6})+' shares.';
+    note.textContent='3-month price from TradingView. You hold '+h.qty.toLocaleString('en-US',{maximumFractionDigits:6})+' shares.';
   }
 }
 
