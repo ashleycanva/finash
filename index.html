@@ -545,13 +545,25 @@ details.settings form{margin-top:12px}
   </div>
 
   <div class="card">
+    <h2>Log a withdrawal</h2>
+    <form id="form-withdraw">
+      <div class="row">
+        <div><label for="w-amount">Amount ($)</label><input id="w-amount" type="number" step="any" min="0.01" placeholder="200" required inputmode="decimal"></div>
+        <div><label for="w-date">Date</label><input id="w-date" type="date" required></div>
+      </div>
+      <label class="cash-check"><input type="checkbox" id="w-cash"> Send to cash balance (to invest) — available: <b id="w-avail">$0</b></label>
+      <button class="btn btn-primary" type="submit">Add withdrawal</button>
+    </form>
+  </div>
+
+  <div class="card">
     <h2>Monthly consistency</h2>
     <div class="streak" id="streak"></div>
     <div class="streak-note" id="streak-note">Each coin is a month. Gold = hit your monthly target.</div>
   </div>
 
   <div class="card">
-    <h2>Deposit history</h2>
+    <h2>Savings history</h2>
     <div id="deposit-history"></div>
   </div>
 </section>
@@ -608,11 +620,11 @@ function load(){
       crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},cryptoAlerted:p.cryptoAlerted||{},
       sales:p.sales||[],
       pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
-      deposits:p.deposits||[],
+      deposits:p.deposits||[],withdrawals:p.withdrawals||[],
       settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15,apyStart:''},p.settings||{})
     });}
   }catch(e){}
-  return{stocks:[],prices:{},targets:{},alerted:{},crypto:[],cryptoPrices:{},cryptoTargets:{},cryptoAlerted:{},sales:[],pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15,apyStart:''}};
+  return{stocks:[],prices:{},targets:{},alerted:{},crypto:[],cryptoPrices:{},cryptoTargets:{},cryptoAlerted:{},sales:[],pricesUpdated:'',cryptoPricesUpdated:'',deposits:[],withdrawals:[],settings:{goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15,apyStart:''}};
 }
 function save(){localStorage.setItem(KEY,JSON.stringify(S));}
 const fmt=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -621,7 +633,11 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const todayISO=()=>new Date().toISOString().slice(0,10);
 
 /* =============== derived =============== */
-function totalSaved(){return (S.settings.startBalance||0)+S.deposits.reduce((a,d)=>a+d.amount,0);}
+function totalSaved(){
+  return (S.settings.startBalance||0)
+    +S.deposits.reduce((a,d)=>a+d.amount,0)
+    -S.withdrawals.reduce((a,w)=>a+w.amount,0);
+}
 /* Positions net of sales, average-cost basis.
    kind: 'stock' | 'crypto' */
 function aggPositions(kind){
@@ -670,7 +686,8 @@ function cashBalance(){
   const stockOut=S.stocks.reduce((a,s)=>a+(s.fromCash?s.shares*s.price:0),0);
   const cryOut=S.crypto.reduce((a,c)=>a+(c.fromCash?c.qty*c.price:0),0);
   const depOut=S.deposits.reduce((a,d)=>a+(d.fromCash?d.amount:0),0);
-  return salesIn-stockOut-cryOut-depOut;
+  const wdIn=S.withdrawals.reduce((a,w)=>a+(w.toCash?w.amount:0),0);
+  return salesIn+wdIn-stockOut-cryOut-depOut;
 }
 
 /* =============== toast =============== */
@@ -1005,6 +1022,7 @@ function recordSale(kind,sym){
   toast(sym+' sold · '+fmt(q*pr)+' added to cash');
 }
 function renderCashUI(){
+  document.getElementById('w-avail').textContent=fmt(Math.max(0,totalSaved()));
   const cash=cashBalance();
   const avail=fmt(Math.max(0,cash));
   for(const pre of ['s','c','d']){
@@ -1204,6 +1222,19 @@ document.getElementById('form-deposit').addEventListener('submit',e=>{
   e.target.reset();document.getElementById('d-date').value=todayISO();
   toast('Deposit added');
 });
+document.getElementById('w-date').value=todayISO();
+document.getElementById('form-withdraw').addEventListener('submit',e=>{
+  e.preventDefault();
+  const a=parseFloat(document.getElementById('w-amount').value);
+  const dt=document.getElementById('w-date').value;
+  if(!(a>0)||!dt)return;
+  if(a>totalSaved()+0.005){toast('Only '+fmt(Math.max(0,totalSaved()))+' in savings');return;}
+  const toCash=document.getElementById('w-cash').checked;
+  S.withdrawals.push({id:uid(),amount:a,date:dt,toCash:toCash||undefined});
+  save();renderAll();
+  e.target.reset();document.getElementById('w-date').value=todayISO();
+  toast('Withdrew '+fmt(a)+(toCash?' to cash':''));
+});
 document.getElementById('form-goal').addEventListener('submit',e=>{
   e.preventDefault();
   S.settings.goalAmount=parseFloat(document.getElementById('g-amount').value)||0;
@@ -1244,6 +1275,11 @@ function renderApy(){
     const from=Math.max(new Date(d.date).getTime(),startMs);
     const days=(now-from)/86400000;
     if(days>0)earned+=d.amount*(Math.pow(1+apy,days/365)-1);
+  }
+  for(const w of S.withdrawals){
+    const from=Math.max(new Date(w.date).getTime(),startMs);
+    const days=(now-from)/86400000;
+    if(days>0)earned-=w.amount*(Math.pow(1+apy,days/365)-1);
   }
   const sb=S.settings.startBalance||0;
   if(startMs&&sb>0){
@@ -1315,12 +1351,24 @@ function renderStreak(){
 }
 function renderDepositHistory(){
   const el=document.getElementById('deposit-history');
-  if(!S.deposits.length){el.innerHTML='<div class="empty"><b>No deposits yet.</b><br>Log your monthly deposit above to start the streak.</div>';return;}
-  el.innerHTML=[...S.deposits].sort((a,b)=>b.date.localeCompare(a.date)).map(d=>
-    `<div class="tx">
+  const rows=[
+    ...S.deposits.map(d=>({date:d.date,html:`<div class="tx">
       <span class="l">${d.date}${d.fromCash?' · from cash':''}</span>
       <span><span class="amt">${fmt(d.amount)}</span><button class="del" onclick="delDeposit('${d.id}')" aria-label="Delete deposit">✕</button></span>
-    </div>`).join('');
+    </div>`})),
+    ...S.withdrawals.map(w=>({date:w.date,html:`<div class="tx">
+      <span class="l">${w.date} · <span class="lossc">WITHDRAWN</span>${w.toCash?' · to cash':''}</span>
+      <span><span class="amt lossc">−${fmt(w.amount)}</span><button class="del" onclick="delWithdrawal('${w.id}')" aria-label="Delete withdrawal">✕</button></span>
+    </div>`}))
+  ];
+  if(!rows.length){el.innerHTML='<div class="empty"><b>No deposits yet.</b><br>Log your monthly deposit above to start the streak.</div>';return;}
+  el.innerHTML=rows.sort((a,b)=>b.date.localeCompare(a.date)).map(r=>r.html).join('');
+}
+function delWithdrawal(id){
+  const w=S.withdrawals.find(x=>x.id===id);
+  if(!confirm('Delete withdrawal of '+fmt(w.amount)+'?'))return;
+  S.withdrawals=S.withdrawals.filter(x=>x.id!==id);
+  save();renderAll();toast('Withdrawal deleted');
 }
 function delDeposit(id){
   const d=S.deposits.find(x=>x.id===id);
@@ -1374,7 +1422,8 @@ function renderChart(){
   const events=[
     ...S.stocks.map(s=>({date:s.date,amt:s.shares*s.price})),
     ...S.crypto.map(c=>({date:c.date,amt:c.qty*c.price})),
-    ...S.deposits.map(d=>({date:d.date,amt:d.amount}))
+    ...S.deposits.map(d=>({date:d.date,amt:d.amount})),
+    ...S.withdrawals.filter(w=>!w.toCash).map(w=>({date:w.date,amt:-w.amount}))
   ].sort((a,b)=>a.date.localeCompare(b.date));
   const el=document.getElementById('ov-chart');
   if(events.length<2){
@@ -1415,6 +1464,7 @@ document.getElementById('btn-export-csv').addEventListener('click',()=>{
   for(const c of S.crypto)csv+=`crypto,${c.date},${c.symbol},${c.qty},${c.price},${(c.qty*c.price).toFixed(2)},${c.fromCash?'yes':''}\n`;
   for(const s of S.sales)csv+=`sell-${s.kind},${s.date},${s.symbol},${s.qty},${s.price},${(s.qty*s.price).toFixed(2)},\n`;
   for(const d of S.deposits)csv+=`deposit,${d.date},,,,${d.amount.toFixed(2)},${d.fromCash?'yes':''}\n`;
+  for(const w of S.withdrawals)csv+=`withdrawal${w.toCash?'-to-cash':''},${w.date},,,,${w.amount.toFixed(2)},\n`;
   download('finash-'+todayISO()+'.csv',csv,'text/csv');
   toast('CSV exported');
 });
@@ -1436,7 +1486,7 @@ document.getElementById('import-file').addEventListener('change',e=>{
          crypto:p.crypto||[],cryptoPrices:p.cryptoPrices||{},cryptoTargets:p.cryptoTargets||{},cryptoAlerted:p.cryptoAlerted||{},
          sales:p.sales||[],
          pricesUpdated:p.pricesUpdated||'',cryptoPricesUpdated:p.cryptoPricesUpdated||'',
-         deposits:p.deposits,
+         deposits:p.deposits,withdrawals:p.withdrawals||[],
          settings:Object.assign({goalAmount:0,monthlyTarget:0,goalDate:'',startBalance:0,finnhubKey:'',apy:4.15,apyStart:''},p.settings||{})});
       save();hydrateGoalForm();
       document.getElementById('fh-key').value=S.settings.finnhubKey||'';
